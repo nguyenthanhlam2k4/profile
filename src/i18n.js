@@ -15,6 +15,7 @@ const resources = {
       },
       "hero": {
         "hi": "Hi, my name is",
+        "name": "Nguyen Thanh Lam",
         "build": "I build things for the web.",
         "cta": "Check out my work!"
       },
@@ -22,7 +23,18 @@ const resources = {
         "title": "About Me",
         "technologies": "Here are a few technologies I've been working with recently:",
         "hometown": "Hometown",
-        "education": "Education"
+        "education": "Education",
+        "birthday": "Date of Birth",
+        "phone": "Phone"
+      },
+      "gallery": {
+        "title": "Gallery",
+        "view_all": "View All",
+        "back": "Back to Home",
+        "sort_newest": "Newest",
+        "sort_oldest": "Oldest",
+        "filter_date": "Filter by Date",
+        "no_images": "No images found."
       },
       "skills": {
         "title": "Technical Skills"
@@ -85,6 +97,7 @@ const resources = {
         "status_inprogress": "In Progress",
         "category_name": "Category Name",
         "skill_list": "Skill List",
+        "birthday": "Date of Birth",
         "no_data": "No data available."
       }
     }
@@ -101,6 +114,7 @@ const resources = {
       },
       "hero": {
         "hi": "Xin chào, tôi là",
+        "name": "Nguyễn Thành Lâm",
         "build": "Tôi xây dựng những thứ tuyệt vời cho web.",
         "cta": "Xem các dự án của tôi!"
       },
@@ -108,7 +122,18 @@ const resources = {
         "title": "Về tôi",
         "technologies": "Dưới đây là một số công nghệ tôi đã làm việc gần đây:",
         "hometown": "Quê quán",
-        "education": "Học vấn"
+        "education": "Học vấn",
+        "birthday": "Ngày sinh",
+        "phone": "Số điện thoại"
+      },
+      "gallery": {
+        "title": "Bộ sưu tập",
+        "view_all": "Xem tất cả",
+        "back": "Quay lại trang chủ",
+        "sort_newest": "Mới nhất",
+        "sort_oldest": "Cũ nhất",
+        "filter_date": "Lọc theo ngày",
+        "no_images": "Không tìm thấy ảnh nào."
       },
       "skills": {
         "title": "Kỹ năng chuyên môn"
@@ -178,6 +203,7 @@ const resources = {
         "status_inprogress": "Đang thực hiện",
         "category_name": "Tên danh mục",
         "skill_list": "Danh sách kỹ năng (cách nhau bởi dấu phẩy)",
+        "birthday": "Ngày tháng năm sinh",
         "no_data": "Chưa có dữ liệu nào được thêm."
       }
     }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { getSocials } from '../../services/firebase';
 
 export default function AboutSection({ profile }) {
@@ -34,6 +35,29 @@ export default function AboutSection({ profile }) {
             </p>
 
             <div className="pt-4 space-y-3">
+              
+              {profile?.email && (
+                <p className="flex items-center gap-3 text-slate-300">
+                  <span className="text-primary font-mono text-sm">Email:</span>
+                  <a href={`mailto:${profile.email}`} className="hover:text-primary transition-colors">
+                    {profile.email}
+                  </a>
+                </p>
+              )}
+              {profile?.phone && (
+                <p className="flex items-center gap-3 text-slate-300">
+                  <span className="text-primary font-mono text-sm">{t('about.phone')}:</span>
+                  <a href={`tel:${profile.phone}`} className="hover:text-primary transition-colors">
+                    {profile.phone}
+                  </a>
+                </p>
+              )}
+              {profile?.birthday && (
+                <p className="flex items-center gap-3 text-slate-300">
+                  <span className="text-primary font-mono text-sm">{t('about.birthday')}:</span>
+                  {profile.birthday}
+                </p>
+              )}
               {profile?.hometown && (
                 <p className="flex items-center gap-3 text-slate-300">
                   <span className="text-primary font-mono text-sm">{t('about.hometown')}:</span>
@@ -57,23 +81,42 @@ export default function AboutSection({ profile }) {
             </div>
           </div>
           
-          <div className="relative group max-w-xs mx-auto md:mx-0">
-            <div className="absolute inset-0 border-2 border-primary translate-x-4 translate-y-4 rounded transition-transform group-hover:translate-x-2 group-hover:translate-y-2"></div>
-            <div className="relative bg-slate-800 aspect-square rounded overflow-hidden">
+          <div className="flex flex-col items-center">
+            <div className="relative w-full max-w-sm aspect-square flex items-center justify-center">
               {profile?.gallery && profile.gallery.length > 0 ? (
-                <GallerySlideshow images={profile.gallery} />
-              ) : profile?.avatar ? (
-                <img 
-                  src={profile.avatar} 
-                  alt={profile.name} 
-                  className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-300"
+                <GallerySlideshow 
+                  images={profile.gallery
+                    .map(item => typeof item === 'string' ? { url: item, createdAt: 0 } : item)
+                    .sort((a, b) => b.createdAt - a.createdAt)
+                    .slice(0, 3)
+                    .map(item => item.url)
+                  } 
                 />
+              ) : profile?.avatar ? (
+                <div className="w-2/3 aspect-[3/4] rounded-xl overflow-hidden shadow-2xl">
+                  <img 
+                    src={profile.avatar} 
+                    alt={t('hero.name')} 
+                    className="w-full h-full object-cover"
+                  />
+                </div>
               ) : (
-                <div className="w-full h-full bg-slate-700 opacity-50 group-hover:opacity-0 transition-opacity flex items-center justify-center mix-blend-multiply">
-                   <span className="text-slate-500">Image Placeholder</span>
+                <div className="w-2/3 aspect-[3/4] bg-slate-800 rounded-xl flex items-center justify-center text-slate-500 shadow-2xl">
+                   <span>No Image</span>
                 </div>
               )}
             </div>
+            
+            {profile?.gallery && profile.gallery.length > 0 && (
+              <div className="mt-16">
+                <Link 
+                  to="/gallery" 
+                  className="px-8 py-2 border border-slate-700 text-slate-400 rounded hover:bg-slate-800 transition-all font-sans text-lg"
+                >
+                  {t('gallery.view_all')}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </motion.div>
@@ -85,30 +128,60 @@ function GallerySlideshow({ images }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    if (images.length <= 1) return;
     const timer = setInterval(() => {
       setIndex((prev) => (prev + 1) % images.length);
-    }, 4000);
+    }, 5000);
     return () => clearInterval(timer);
   }, [images.length]);
 
+  const getPosition = (i) => {
+    let diff = i - index;
+    if (diff < -Math.floor(images.length / 2)) diff += images.length;
+    if (diff > Math.floor(images.length / 2)) diff -= images.length;
+    return diff;
+  };
+
   return (
-    <div className="w-full h-full relative">
-      <AnimatePresence mode="wait">
-        <motion.img
-          key={index}
-          src={images[index]}
-          initial={{ opacity: 0, scale: 1.1 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.9 }}
-          transition={{ duration: 0.8 }}
-          className="w-full h-full object-cover filter grayscale hover:grayscale-0 transition-all duration-500"
-        />
-      </AnimatePresence>
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2">
+    <div className="w-full h-full relative flex items-center justify-center overflow-visible">
+      <div className="relative w-[70%] aspect-[3/4] flex items-center justify-center">
+        {images.map((img, i) => {
+          const pos = getPosition(i);
+          const isActive = pos === 0;
+          const isVisible = Math.abs(pos) <= 1;
+          
+          return (
+            <motion.div
+              key={i}
+              className="absolute w-full h-full rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] overflow-hidden cursor-pointer"
+              initial={false}
+              animate={{
+                x: pos * 40,
+                scale: isActive ? 1 : 0.85,
+                zIndex: isActive ? 10 : 5 - Math.abs(pos),
+                opacity: isVisible ? (isActive ? 1 : 0.6) : 0,
+                filter: isActive ? 'blur(0px)' : 'blur(1px)',
+              }}
+              transition={{ 
+                type: 'spring', 
+                stiffness: 260, 
+                damping: 20 
+              }}
+              onClick={() => setIndex(i)}
+            >
+              <img src={img} alt="" className="w-full h-full object-cover" />
+            </motion.div>
+          );
+        })}
+      </div>
+      
+      {/* Pagination Dots */}
+      <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 flex gap-3">
         {images.map((_, i) => (
-          <div 
+          <button 
             key={i} 
-            className={`w-1.5 h-1.5 rounded-full transition-all ${i === index ? 'bg-primary w-4' : 'bg-white/30'}`}
+            onClick={() => setIndex(i)}
+            className={`w-2 h-2 rounded-full transition-all duration-300 ${i === index ? 'bg-slate-200 scale-125' : 'bg-slate-600'}`}
           />
         ))}
       </div>

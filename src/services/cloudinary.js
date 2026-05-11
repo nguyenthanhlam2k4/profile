@@ -12,8 +12,6 @@ export const uploadImage = async (file) => {
   const formData = new FormData();
   formData.append('file', file);
   formData.append('upload_preset', UPLOAD_PRESET);
-console.log("Cloud Name:", import.meta.env.VITE_CLOUDINARY_CLOUD_NAME);
-console.log("Preset:", import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET);
   try {
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/image/upload`,

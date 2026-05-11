@@ -11,6 +11,7 @@ import SkillsManager from './pages/admin/SkillsManager';
 import ProfileManager from './pages/admin/ProfileManager';
 import MessagesManager from './pages/admin/MessagesManager';
 import SocialsManager from './pages/admin/SocialsManager';
+import Gallery from './pages/Gallery';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -21,6 +22,7 @@ function App() {
           {/* Public Routes */}
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Home />} />
+            <Route path="gallery" element={<Gallery />} />
           </Route>
 
           {/* Admin Routes */}

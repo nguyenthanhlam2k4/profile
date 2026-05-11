@@ -91,7 +91,7 @@ export default function MainLayout() {
       </main>
 
       <footer className="border-t border-border py-8 text-center text-sm text-gray-500">
-        <p>&copy; {new Date().getFullYear()} {profile?.name || 'Nguyen Thanh Lam'}. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} {t('hero.name')}. All rights reserved.</p>
       </footer>
     </div>
   );

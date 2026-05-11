@@ -41,7 +41,7 @@ export default function Home() {
   }, []);
 
   // Default values if profile is not loaded or doesn't exist
-  const name = profile?.name || 'Nguyen Thanh Lam';
+  const name = t('hero.name');
   const title = profile?.title || t('hero.build');
 
   return (
