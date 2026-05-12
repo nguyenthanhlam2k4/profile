@@ -2,8 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Outlet, Link } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { Sun, Moon, Languages, Heart, Link as LinkIcon } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sun, Moon, Languages, Heart, Link as LinkIcon, Menu, X } from 'lucide-react';
 import { getProfile, getSocials } from '../services/firebase';
 import Chatbot from '../components/Chatbot';
 
@@ -13,10 +13,12 @@ export default function MainLayout() {
   const [profile, setProfile] = useState(null);
   const [socials, setSocials] = useState([]);
   const [isMobile, setIsMobile] = useState(false);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   useEffect(() => {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
+      if (window.innerWidth >= 768) setIsMenuOpen(false);
     };
     checkMobile();
     window.addEventListener('resize', checkMobile);
@@ -38,6 +40,13 @@ export default function MainLayout() {
     const nextLang = i18n.language === 'en' ? 'vi' : 'en';
     i18n.changeLanguage(nextLang);
   };
+
+  const navLinks = [
+    { href: "#about", label: t('nav.about') },
+    { href: "#skills", label: t('nav.skills') },
+    { href: "#projects", label: t('nav.projects') },
+    { href: "#contact", label: t('nav.contact') },
+  ];
 
   return (
     <div className={`min-h-screen relative text-foreground selection:bg-primary/30 selection:text-primary transition-colors ${theme === 'dark' ? 'bg-slate-950' : 'bg-slate-50'}`}>
@@ -78,14 +87,13 @@ export default function MainLayout() {
           
           <div className="flex items-center gap-6">
             <nav className={`hidden md:flex gap-8 text-[11px] font-bold uppercase tracking-widest ${theme === 'dark' ? 'text-slate-400' : 'text-slate-500'}`}>
-              <a href="#about" className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-primary'}`}>{t('nav.about')}</a>
-              <a href="#skills" className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-primary'}`}>{t('nav.skills')}</a>
-              <a href="#projects" className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-primary'}`}>{t('nav.projects')}</a>
-              <a href="#contact" className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-primary'}`}>{t('nav.contact')}</a>
+              {navLinks.map((link) => (
+                <a key={link.href} href={link.href} className={`transition-colors ${theme === 'dark' ? 'hover:text-white' : 'hover:text-primary'}`}>{link.label}</a>
+              ))}
               <Link to="/admin" className="text-primary hover:text-primary-400 transition-colors border-l border-current/10 pl-6 ml-2 uppercase">Dashboard</Link>
             </nav>
 
-            <div className={`flex items-center gap-3 border-l ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} pl-6`}>
+            <div className={`flex items-center gap-2 md:gap-3 ${!isMobile ? 'border-l' : ''} ${theme === 'dark' ? 'border-white/10' : 'border-slate-200'} md:pl-6`}>
               <button 
                 onClick={toggleLanguage}
                 className={`p-2 rounded-xl transition-all flex items-center gap-1 text-[10px] font-bold uppercase tracking-tight ${theme === 'dark' ? 'hover:bg-white/5 text-slate-400' : 'hover:bg-slate-100 text-slate-500'}`}
@@ -100,10 +108,51 @@ export default function MainLayout() {
               >
                 {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
               </button>
+
+              {/* Mobile Menu Toggle */}
+              <button 
+                onClick={() => setIsMenuOpen(!isMenuOpen)}
+                className={`md:hidden p-2 rounded-xl transition-all ${theme === 'dark' ? 'bg-white/5 text-white' : 'bg-slate-100 text-slate-900'}`}
+              >
+                {isMenuOpen ? <X size={20} /> : <Menu size={20} />}
+              </button>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Mobile Menu Overlay */}
+      <AnimatePresence>
+        {isMenuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className={`fixed inset-0 z-40 md:hidden pt-24 px-6 ${theme === 'dark' ? 'bg-slate-950/95' : 'bg-white/95'} backdrop-blur-xl`}
+          >
+            <div className="flex flex-col gap-6">
+              {navLinks.map((link) => (
+                <a 
+                  key={link.href} 
+                  href={link.href} 
+                  onClick={() => setIsMenuOpen(false)}
+                  className={`text-2xl font-black tracking-tighter transition-colors ${theme === 'dark' ? 'text-white hover:text-primary' : 'text-slate-900 hover:text-primary'}`}
+                >
+                  {link.label}
+                </a>
+              ))}
+              <div className={`h-px w-full ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-200'}`} />
+              <Link 
+                to="/admin" 
+                onClick={() => setIsMenuOpen(false)}
+                className="text-2xl font-black tracking-tighter text-primary hover:text-primary-400 transition-colors uppercase"
+              >
+                Dashboard / Admin
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <main className="relative pt-20">
         <Outlet />
