@@ -131,7 +131,7 @@ export default function MainLayout() {
             exit={{ opacity: 0 }}
             className={`fixed inset-0 z-40 md:hidden ${theme === 'dark' ? 'bg-slate-950/98' : 'bg-white/98'} backdrop-blur-2xl flex flex-col`}
           >
-            <div className="flex-1 flex flex-col justify-center px-10 gap-8">
+            <div className="flex-1 flex flex-col justify-center px-10 gap-6">
               {navLinks.map((link, idx) => (
                 <motion.div
                   key={link.href}
@@ -139,16 +139,29 @@ export default function MainLayout() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.1 }}
                 >
-                  <a 
-                    href={link.href} 
-                    onClick={() => setIsMenuOpen(false)}
-                    className="group flex items-baseline gap-4"
-                  >
-                    <span className="text-primary font-mono text-[10px]">0{idx + 1}.</span>
-                    <span className={`text-xl font-bold tracking-tight transition-all group-hover:text-primary ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
-                      {link.label}
-                    </span>
-                  </a>
+                  {link.href.startsWith('#') ? (
+                    <a 
+                      href={link.href} 
+                      onClick={() => setIsMenuOpen(false)}
+                      className="group flex items-baseline gap-4"
+                    >
+                      <span className="text-primary font-mono text-[10px]">0{idx + 1}.</span>
+                      <span className={`text-xl font-bold tracking-tight transition-all group-hover:text-primary ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                        {link.label}
+                      </span>
+                    </a>
+                  ) : (
+                    <Link 
+                      to={link.href} 
+                      onClick={() => setIsMenuOpen(false)}
+                      className="group flex items-baseline gap-4"
+                    >
+                      <span className="text-primary font-mono text-[10px]">0{idx + 1}.</span>
+                      <span className={`text-xl font-bold tracking-tight transition-all group-hover:text-primary ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                        {link.label}
+                      </span>
+                    </Link>
+                  )}
                 </motion.div>
               ))}
               
@@ -156,8 +169,17 @@ export default function MainLayout() {
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: navLinks.length * 0.1 }}
-                className="pt-6 mt-2 border-t border-white/10"
+                className="pt-6 mt-4 border-t border-white/10 flex flex-col gap-4"
               >
+                <Link 
+                  to="/gallery" 
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 text-slate-400 hover:text-primary transition-colors"
+                >
+                  <span className="text-sm font-bold uppercase tracking-wider">View Gallery</span>
+                  <div className="flex-grow h-px bg-white/5" />
+                </Link>
+
                 <Link 
                   to="/admin" 
                   onClick={() => setIsMenuOpen(false)}
