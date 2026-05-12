@@ -143,8 +143,8 @@ export default function MainLayout() {
                     onClick={() => setIsMenuOpen(false)}
                     className="group flex items-baseline gap-4"
                   >
-                    <span className="text-primary font-mono text-xs">0{idx + 1}.</span>
-                    <span className={`text-2xl font-bold tracking-tight transition-all group-hover:text-primary ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                    <span className="text-primary font-mono text-[10px]">0{idx + 1}.</span>
+                    <span className={`text-xl font-bold tracking-tight transition-all group-hover:text-primary ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
                       {link.label}
                     </span>
                   </a>
@@ -162,7 +162,7 @@ export default function MainLayout() {
                   onClick={() => setIsMenuOpen(false)}
                   className="flex items-center gap-3 text-primary hover:text-primary-400 transition-colors"
                 >
-                  <span className="text-base font-bold uppercase tracking-wider">Dashboard Access</span>
+                  <span className="text-sm font-bold uppercase tracking-wider">Dashboard Access</span>
                   <div className="flex-grow h-px bg-primary/20" />
                 </Link>
               </motion.div>
