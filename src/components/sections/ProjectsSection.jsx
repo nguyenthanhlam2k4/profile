@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { GitBranch, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 
 export default function ProjectsSection({ projects: dynamicProjects }) {
   const { t } = useTranslation();
@@ -100,6 +101,17 @@ export default function ProjectsSection({ projects: dynamicProjects }) {
               </div>
             </div>
           ))}
+        </div>
+
+        {/* View All Projects Button */}
+        <div className="flex justify-center mt-16">
+          <Link 
+            to="/projects" 
+            className="px-8 py-3 bg-white/5 hover:bg-white/10 border border-border rounded-2xl text-slate-500 dark:text-slate-400 hover:text-primary hover:border-primary transition-all font-bold text-sm flex items-center gap-2 group shadow-xl"
+          >
+            {t('projects.viewAll') || "View All Projects"}
+            <ExternalLink size={16} className="group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
       </motion.div>
     </section>

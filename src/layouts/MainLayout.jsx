@@ -46,6 +46,7 @@ export default function MainLayout() {
     { href: "#skills", label: t('nav.skills') },
     { href: "#projects", label: t('nav.projects') },
     { href: "#contact", label: t('nav.contact') },
+    { href: "/gallery", label: "Gallery" },
   ];
 
   return (
