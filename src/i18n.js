@@ -15,7 +15,7 @@ const resources = {
       },
       "hero": {
         "hi": "Hi, my name is",
-        "name": "Nguyen Thanh Lam",
+        "name": "NGUYEN THANH LAM",
         "build": "I build things for the web.",
         "cta": "Check out my work!"
       },
@@ -114,7 +114,7 @@ const resources = {
       },
       "hero": {
         "hi": "Xin chào, tôi là",
-        "name": "Nguyễn Thành Lâm",
+        "name": "NGUYỄN THÀNH LÂM",
         "build": "Tôi xây dựng những thứ tuyệt vời cho web.",
         "cta": "Xem các dự án của tôi!"
       },

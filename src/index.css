@@ -14,15 +14,21 @@
 :root {
   --background: #ffffff;
   --foreground: #0f172a;
+  --text-secondary: #334155;
+  --text-dim: #64748b;
   --card: #f8fafc;
   --border: #e2e8f0;
+  --primary-rgb: 56, 189, 248;
 }
 
 .dark {
   --background: #0f172a;
   --foreground: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-dim: #94a3b8;
   --card: #1e293b;
   --border: #334155;
+  --primary-rgb: 56, 189, 248;
 }
 
 @layer base {
@@ -33,6 +39,30 @@
     -moz-osx-font-smoothing: grayscale;
     transition: background-color 0.3s ease, color 0.3s ease;
   }
+}
+
+@layer utilities {
+  .animate-gradient-x {
+    background-size: 200% 200%;
+    animation: gradient-x 15s ease infinite;
+  }
+}
+
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.bg-grid-slate-900 {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(15 23 42 / 0.04)'%3E%3Cpath d='M0 .5H31.5V32'/%3E%3C/svg%3E");
+}
+
+.dark .bg-grid-slate-900 {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32' width='32' height='32' fill='none' stroke='rgb(248 250 252 / 0.02)'%3E%3Cpath d='M0 .5H31.5V32'/%3E%3C/svg%3E");
 }
 
 html {
