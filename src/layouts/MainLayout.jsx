@@ -125,31 +125,73 @@ export default function MainLayout() {
       <AnimatePresence>
         {isMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className={`fixed inset-0 z-40 md:hidden pt-24 px-6 ${theme === 'dark' ? 'bg-slate-950/95' : 'bg-white/95'} backdrop-blur-xl`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className={`fixed inset-0 z-40 md:hidden ${theme === 'dark' ? 'bg-slate-950/98' : 'bg-white/98'} backdrop-blur-2xl flex flex-col`}
           >
-            <div className="flex flex-col gap-6">
-              {navLinks.map((link) => (
-                <a 
-                  key={link.href} 
-                  href={link.href} 
-                  onClick={() => setIsMenuOpen(false)}
-                  className={`text-2xl font-black tracking-tighter transition-colors ${theme === 'dark' ? 'text-white hover:text-primary' : 'text-slate-900 hover:text-primary'}`}
+            <div className="flex-1 flex flex-col justify-center px-10 gap-8">
+              {navLinks.map((link, idx) => (
+                <motion.div
+                  key={link.href}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: idx * 0.1 }}
                 >
-                  {link.label}
-                </a>
+                  <a 
+                    href={link.href} 
+                    onClick={() => setIsMenuOpen(false)}
+                    className="group flex items-baseline gap-4"
+                  >
+                    <span className="text-primary font-mono text-sm">0{idx + 1}.</span>
+                    <span className={`text-4xl font-bold tracking-tight transition-all group-hover:text-primary ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>
+                      {link.label}
+                    </span>
+                  </a>
+                </motion.div>
               ))}
-              <div className={`h-px w-full ${theme === 'dark' ? 'bg-white/10' : 'bg-slate-200'}`} />
-              <Link 
-                to="/admin" 
-                onClick={() => setIsMenuOpen(false)}
-                className="text-2xl font-black tracking-tighter text-primary hover:text-primary-400 transition-colors uppercase"
+              
+              <motion.div 
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: navLinks.length * 0.1 }}
+                className="pt-8 mt-4 border-t border-white/10"
               >
-                Dashboard / Admin
-              </Link>
+                <Link 
+                  to="/admin" 
+                  onClick={() => setIsMenuOpen(false)}
+                  className="flex items-center gap-3 text-primary hover:text-primary-400 transition-colors"
+                >
+                  <span className="text-lg font-bold uppercase tracking-wider">Dashboard Access</span>
+                  <div className="flex-grow h-px bg-primary/20" />
+                </Link>
+              </motion.div>
             </div>
+
+            {/* Bottom info in mobile menu */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="p-10 border-t border-white/5 flex flex-col gap-4"
+            >
+              <div className="flex gap-4">
+                {socials.map((social) => (
+                  <a 
+                    key={social.id} 
+                    href={social.url} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className={`p-3 rounded-2xl ${theme === 'dark' ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-600'}`}
+                  >
+                    <LinkIcon size={20} />
+                  </a>
+                ))}
+              </div>
+              <p className="text-[10px] font-mono text-slate-500 uppercase tracking-widest">
+                © {new Date().getFullYear()} {profile?.name || "Lam"} • Built with Passion
+              </p>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
