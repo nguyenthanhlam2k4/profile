@@ -11,6 +11,7 @@ const AdminLayout = lazy(() => import('./layouts/AdminLayout'));
 // Pages
 const Home = lazy(() => import('./pages/Home'));
 const Gallery = lazy(() => import('./pages/Gallery'));
+const Projects = lazy(() => import('./pages/Projects'));
 const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const ProjectsManager = lazy(() => import('./pages/admin/ProjectsManager'));
@@ -35,6 +36,7 @@ function App() {
             <Route path="/" element={<MainLayout />}>
               <Route index element={<Home />} />
               <Route path="gallery" element={<Gallery />} />
+              <Route path="projects" element={<Projects />} />
             </Route>
 
             {/* Admin Routes */}

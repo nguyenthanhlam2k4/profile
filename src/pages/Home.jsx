@@ -125,7 +125,7 @@ export default function Home() {
 
         <AboutSection profile={profile} socials={socials} />
         <SkillsSection skills={skills} />
-        <ProjectsSection projects={projects} />
+        <ProjectsSection projects={projects} limit={3} />
         <ContactSection profile={profile} />
       </div>
     </div>

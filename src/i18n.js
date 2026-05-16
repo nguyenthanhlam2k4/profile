@@ -41,7 +41,8 @@ const resources = {
       },
       "projects": {
         "title": "Some Things I've Built",
-        "featured": "Featured Project"
+        "featured": "Featured Project",
+        "viewAll": "View All Projects"
       },
       "contact": {
         "next": "What's Next?",
@@ -140,7 +141,8 @@ const resources = {
       },
       "projects": {
         "title": "Những dự án tiêu biểu",
-        "featured": "Dự án tiêu biểu"
+        "featured": "Dự án tiêu biểu",
+        "viewAll": "Xem tất cả dự án"
       },
       "contact": {
         "next": "Tiếp theo là gì?",

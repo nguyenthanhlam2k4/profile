@@ -4,7 +4,7 @@ import { GitBranch, ExternalLink } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 
-export default function ProjectsSection({ projects: dynamicProjects }) {
+export default function ProjectsSection({ projects: dynamicProjects, limit, showViewAll = true }) {
   const { t } = useTranslation();
   const defaultProjects = [
     {
@@ -33,10 +33,12 @@ export default function ProjectsSection({ projects: dynamicProjects }) {
     }
   ];
 
-  const displayProjects = (dynamicProjects?.length > 0 
+  const sortedProjects = dynamicProjects?.length > 0 
     ? [...dynamicProjects].sort((a, b) => (a.order || 0) - (b.order || 0))
-    : defaultProjects
-  ).map(p => ({
+    : defaultProjects;
+
+  const displayProjects = (limit ? sortedProjects.slice(0, limit) : sortedProjects)
+    .map(p => ({
         ...p,
         techStack: typeof p.techStack === 'string' ? p.techStack.split(',').map(t => t.trim()) : p.techStack,
         image: p.image || 'https://images.unsplash.com/photo-1517694712202-14dd9538aa97?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80'
@@ -104,15 +106,17 @@ export default function ProjectsSection({ projects: dynamicProjects }) {
         </div>
 
         {/* View All Projects Button */}
-        <div className="flex justify-center mt-16">
-          <Link 
-            to="/projects" 
-            className="px-8 py-3 bg-white/5 hover:bg-white/10 border border-border rounded-2xl text-slate-500 dark:text-slate-400 hover:text-primary hover:border-primary transition-all font-bold text-sm flex items-center gap-2 group shadow-xl"
-          >
-            {t('projects.viewAll') || "View All Projects"}
-            <ExternalLink size={16} className="group-hover:translate-x-1 transition-transform" />
-          </Link>
-        </div>
+        {showViewAll && (
+          <div className="flex justify-center mt-16">
+            <Link 
+              to="/projects" 
+              className="px-8 py-3 bg-white/5 hover:bg-white/10 border border-border rounded-2xl text-slate-500 dark:text-slate-400 hover:text-primary hover:border-primary transition-all font-bold text-sm flex items-center gap-2 group shadow-xl"
+            >
+              {t('projects.viewAll')}
+              <ExternalLink size={16} className="group-hover:translate-x-1 transition-transform" />
+            </Link>
+          </div>
+        )}
       </motion.div>
     </section>
   );
