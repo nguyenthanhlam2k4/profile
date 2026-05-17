@@ -16,8 +16,10 @@ const AdminLogin = lazy(() => import('./pages/admin/AdminLogin'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const ProjectsManager = lazy(() => import('./pages/admin/ProjectsManager'));
 const SkillsManager = lazy(() => import('./pages/admin/SkillsManager'));
+const GalleryManager = lazy(() => import('./pages/admin/GalleryManager'));
 const ProfileManager = lazy(() => import('./pages/admin/ProfileManager'));
 const SocialsManager = lazy(() => import('./pages/admin/SocialsManager'));
+const MessagesManager = lazy(() => import('./pages/admin/MessagesManager'));
 
 // Loading Fallback
 const PageLoader = () => (
@@ -52,6 +54,8 @@ function App() {
               <Route index element={<Dashboard />} />
               <Route path="projects" element={<ProjectsManager />} />
               <Route path="skills" element={<SkillsManager />} />
+              <Route path="gallery" element={<GalleryManager />} />
+              <Route path="messages" element={<MessagesManager />} />
               <Route path="socials" element={<SocialsManager />} />
               <Route path="profile" element={<ProfileManager />} />
             </Route>

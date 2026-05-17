@@ -1,14 +1,14 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Image as ImageIcon, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
-export default function AboutSection({ profile, socials }) {
+export default function AboutSection({ profile, socials, gallery }) {
   const { t } = useTranslation();
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const galleryItems = profile?.gallery || [];
+  const galleryItems = gallery && gallery.length > 0 ? gallery : (profile?.gallery || []);
   const previewItems = galleryItems.slice(0, 5); // Show up to 5 items in slider
 
   const nextSlide = () => {
@@ -18,6 +18,14 @@ export default function AboutSection({ profile, socials }) {
   const prevSlide = () => {
     setActiveIndex((prev) => (prev - 1 + previewItems.length) % previewItems.length);
   };
+
+  // Auto-play interval
+  useEffect(() => {
+    const timer = setInterval(() => {
+      nextSlide();
+    }, 3000); // Change slide every 3 seconds
+    return () => clearInterval(timer);
+  }, [previewItems.length]);
 
   return (
     <section id="about" className="py-20">
@@ -90,46 +98,59 @@ export default function AboutSection({ profile, socials }) {
 
           {/* Bottom: 3D Stacked Slider & All View Button */}
           <div className="flex flex-col items-center pt-8 border-t border-border/50">
-            <div className="relative w-full h-[400px] flex items-center justify-center overflow-hidden py-10">
+            <div className="relative w-full h-[300px] sm:h-[350px] md:h-[450px] flex items-center justify-center overflow-visible py-10">
               <AnimatePresence initial={false}>
                 {previewItems.map((item, index) => {
+                  const numItems = previewItems.length;
                   const isCenter = index === activeIndex;
-                  const isLeft = index === (activeIndex - 1 + previewItems.length) % previewItems.length;
-                  const isRight = index === (activeIndex + 1) % previewItems.length;
+                  const isLeft1 = index === (activeIndex - 1 + numItems) % numItems;
+                  const isRight1 = index === (activeIndex + 1) % numItems;
+                  const isLeft2 = index === (activeIndex - 2 + numItems) % numItems;
+                  const isRight2 = index === (activeIndex + 2) % numItems;
 
-                  if (!isCenter && !isLeft && !isRight) return null;
+                  // Show exactly 5 items
+                  if (!isCenter && !isLeft1 && !isRight1 && !isLeft2 && !isRight2) return null;
 
-                  let x = 0;
-                  let scale = 0.8;
+                  let x = "0%";
+                  let scale = 0.7;
                   let zIndex = 10;
-                  let opacity = 0.3;
-                  let rotate = 0;
+                  let opacity = 0.6;
 
                   if (isCenter) {
-                    x = 0;
+                    x = "0%";
                     scale = 1;
-                    zIndex = 30;
+                    zIndex = 50;
                     opacity = 1;
-                  } else if (isLeft) {
-                    x = -100;
+                  } else if (isLeft1) {
+                    x = "-105%";
                     scale = 0.85;
-                    zIndex = 20;
-                    rotate = -5;
-                  } else if (isRight) {
-                    x = 100;
+                    zIndex = 40;
+                    opacity = 0.9;
+                  } else if (isRight1) {
+                    x = "105%";
                     scale = 0.85;
-                    zIndex = 20;
-                    rotate = 5;
+                    zIndex = 40;
+                    opacity = 0.9;
+                  } else if (isLeft2) {
+                    x = "-195%";
+                    scale = 0.7;
+                    zIndex = 30;
+                    opacity = 0.7;
+                  } else if (isRight2) {
+                    x = "195%";
+                    scale = 0.7;
+                    zIndex = 30;
+                    opacity = 0.7;
                   }
 
                   return (
                     <motion.div
                       key={index}
-                      initial={{ opacity: 0, x: 0, scale: 0.5 }}
-                      animate={{ x, scale, zIndex, opacity, rotate }}
+                      initial={{ opacity: 0, x: "0%", scale: 0.5 }}
+                      animate={{ x, scale, zIndex, opacity }}
                       exit={{ opacity: 0, scale: 0.5 }}
-                      transition={{ type: "spring", stiffness: 300, damping: 30 }}
-                      className="absolute w-[240px] md:w-[300px] aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl border-2 border-white/10 cursor-pointer"
+                      transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
+                      className="absolute w-[120px] sm:w-[160px] md:w-[220px] aspect-[4/5] rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl cursor-pointer bg-slate-900"
                       onClick={() => setActiveIndex(index)}
                       drag="x"
                       dragConstraints={{ left: 0, right: 0 }}
@@ -141,20 +162,15 @@ export default function AboutSection({ profile, socials }) {
                       <img 
                         src={typeof item === 'string' ? item : item.url} 
                         alt="Gallery" 
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover pointer-events-none"
                       />
-                      {isCenter && (
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent flex items-end p-6">
-                          <div className="w-12 h-1.5 bg-primary rounded-full"></div>
-                        </div>
-                      )}
                     </motion.div>
                   );
                 })}
               </AnimatePresence>
 
               {/* Dots Indicator inside the slider area */}
-              <div className="absolute bottom-4 flex gap-2 z-40">
+              <div className="absolute bottom-2 flex gap-2 z-40">
                 {previewItems.map((_, i) => (
                   <button
                     key={i}

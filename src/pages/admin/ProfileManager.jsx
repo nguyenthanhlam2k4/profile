@@ -20,12 +20,7 @@ export default function ProfileManager() {
       try {
         const data = await getProfile();
         if (data) {
-          // Normalize gallery data: convert strings to objects
-          if (data.gallery) {
-            data.gallery = data.gallery.map(item => 
-              typeof item === 'string' ? { url: item, createdAt: Date.now() } : item
-            );
-          }
+
           reset(data);
         }
       } catch (error) {
@@ -222,58 +217,7 @@ export default function ProfileManager() {
             ></textarea>
           </div>
 
-          {/* Gallery Section */}
-          <div className="border-t border-slate-800 pt-8 mt-8">
-            <h3 className="text-xl font-bold text-slate-200 mb-4">{t('admin.gallery')}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4 mb-4">
-              {watch('gallery')?.map((item, idx) => {
-                const url = typeof item === 'string' ? item : item.url;
-                return (
-                  <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border border-slate-800 bg-slate-950">
-                    <img src={url} alt={`Gallery ${idx}`} className="w-full h-full object-cover" />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const currentGallery = watch('gallery') || [];
-                        setValue('gallery', currentGallery.filter((_, i) => i !== idx));
-                      }}
-                      className="absolute top-2 right-2 bg-red-500/80 hover:bg-red-500 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                    >
-                      <Save className="w-4 h-4 rotate-45" />
-                    </button>
-                  </div>
-                );
-              })}
-              <label className="flex flex-col items-center justify-center aspect-square rounded-lg border-2 border-dashed border-slate-800 hover:border-primary/50 hover:bg-primary/5 cursor-pointer transition-all">
-                <Camera className="w-8 h-8 text-slate-600 mb-2" />
-                <span className="text-xs text-slate-500">{t('admin.add')}</span>
-                <input
-                  type="file"
-                  className="hidden"
-                  accept="image/*"
-                  multiple
-                  onChange={async (e) => {
-                    const files = Array.from(e.target.files);
-                    if (files.length === 0) return;
-                    
-                    setUploading(true);
-                    try {
-                      const newUrls = await Promise.all(files.map(file => uploadImage(file)));
-                      const newItems = newUrls.map(url => ({ url, createdAt: Date.now() }));
-                      const currentGallery = watch('gallery') || [];
-                      setValue('gallery', [...currentGallery, ...newItems]);
-                      toast.success('Đã thêm ảnh vào bộ sưu tập');
-                    } catch (error) {
-                      toast.error('Tải ảnh lên thất bại');
-                    } finally {
-                      setUploading(false);
-                    }
-                  }}
-                  disabled={uploading}
-                />
-              </label>
-            </div>
-          </div>
+
         </form>
       </div>
     </div>

@@ -3,13 +3,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Calendar, SortDesc, SortAsc, Filter, X, Plus, ChevronLeft, ChevronRight } from 'lucide-react';
-import { getProfile } from '../services/firebase';
+import { getGallery, subscribeGallery } from '../services/firebase';
 
 const PAGE_SIZE = 6;
 
 export default function Gallery() {
   const { t } = useTranslation();
-  const [profile, setProfile] = useState(null);
+  const [gallery, setGallery] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sortBy, setSortBy] = useState('newest'); // 'newest' | 'oldest'
   const [filterDate, setFilterDate] = useState('');
@@ -17,44 +17,41 @@ export default function Gallery() {
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await getProfile();
-        setProfile(data);
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
+    const unsubscribe = subscribeGallery((data) => {
+      setGallery(data || []);
+      setLoading(false);
+    }, (error) => {
+      console.error('Error in gallery real-time feed:', error);
+      setLoading(false);
+    });
     window.scrollTo(0, 0);
+    return unsubscribe;
   }, []);
 
   const allFilteredItems = useMemo(() => {
-    if (!profile?.gallery) return [];
+    if (!gallery) return [];
 
-    let items = profile.gallery.map(item => 
-      typeof item === 'string' ? { url: item, createdAt: 0 } : item
-    );
+    let items = [...gallery];
 
     // Filter by date
     if (filterDate) {
       items = items.filter(item => {
-        if (!item.createdAt) return false;
-        const itemDate = new Date(item.createdAt).toISOString().split('T')[0];
+        if (!item.postedAt) return false;
+        const itemDate = new Date(item.postedAt).toISOString().split('T')[0];
         return itemDate === filterDate;
       });
     }
 
     // Sort
     items.sort((a, b) => {
-      if (sortBy === 'newest') return b.createdAt - a.createdAt;
-      return a.createdAt - b.createdAt;
+      const timeA = a.postedAt || a.createdAt || 0;
+      const timeB = b.postedAt || b.createdAt || 0;
+      if (sortBy === 'newest') return timeB - timeA;
+      return timeA - timeB;
     });
 
     return items;
-  }, [profile, sortBy, filterDate]);
+  }, [gallery, sortBy, filterDate]);
 
   // Pagination Logic
   const totalPages = Math.ceil(allFilteredItems.length / PAGE_SIZE);
@@ -154,7 +151,7 @@ export default function Gallery() {
                   <motion.div
                     key={idx}
                     whileHover={{ y: -8, transition: { duration: 0.2 } }}
-                    className="relative aspect-square rounded-2xl overflow-hidden cursor-pointer group border border-border bg-card shadow-lg hover:shadow-2xl transition-all"
+                    className="relative aspect-square rounded-[36px] overflow-hidden cursor-pointer group border border-border/50 bg-card shadow-lg hover:shadow-2xl transition-all"
                     onClick={() => setSelectedImage(item.url)}
                   >
                     <img 
@@ -164,15 +161,12 @@ export default function Gallery() {
                       decoding="async"
                       className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                     />
-                    <div className="absolute inset-0 bg-primary/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <div className="bg-white/10 backdrop-blur-md p-4 rounded-full transform translate-y-4 group-hover:translate-y-0 transition-all duration-300 border border-white/20">
-                        <Plus size={24} className="text-white" />
-                      </div>
-                    </div>
-                    {item.createdAt > 0 && (
-                      <div className="absolute bottom-4 left-4 right-4 translate-y-20 group-hover:translate-y-0 transition-transform duration-300">
-                        <div className="bg-card/90 backdrop-blur-md px-3 py-2 rounded-xl text-[10px] font-bold font-mono text-slate-500 dark:text-slate-400 border border-border shadow-lg">
-                          {new Date(item.createdAt).toLocaleDateString()}
+                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+                    
+                    {item.title && (
+                      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 w-full px-6 flex justify-center pointer-events-none transition-transform duration-300 group-hover:-translate-y-2">
+                        <div className="bg-slate-900/60 backdrop-blur-md px-6 py-2.5 rounded-full shadow-xl border border-white/10 max-w-full">
+                          <span className="text-[15px] font-medium text-white/95 truncate block tracking-wide">{item.title}</span>
                         </div>
                       </div>
                     )}

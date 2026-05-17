@@ -1,56 +1,212 @@
-import React, { useState } from 'react';
-import { Mail, Trash2, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  Trash2, 
+  Search, 
+  Mail, 
+  Calendar, 
+  MessageSquare, 
+  User, 
+  Loader2, 
+  Inbox, 
+  AlertCircle 
+} from 'lucide-react';
+import { subscribeMessages, deleteMessage } from '../../services/firebase';
+import toast from 'react-hot-toast';
 
 export default function MessagesManager() {
-  const [messages, setMessages] = useState([
-    { id: 1, name: 'John Doe', email: 'john@example.com', subject: 'Project Inquiry', date: '2023-10-25', read: false },
-    { id: 2, name: 'Jane Smith', email: 'jane@example.com', subject: 'Collaboration', date: '2023-10-24', read: true },
-  ]);
+  const [messages, setMessages] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [deletingId, setDeletingId] = useState(null);
+
+  useEffect(() => {
+    const unsubscribe = subscribeMessages(
+      (data) => {
+        setMessages(data || []);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error subscribing to messages:', error);
+        toast.error('Không thể tải danh sách tin nhắn thời gian thực.');
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
+  }, []);
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Bạn có chắc chắn muốn xóa tin nhắn này không? Hành động này không thể hoàn tác.')) {
+      setDeletingId(id);
+      try {
+        await deleteMessage(id);
+        toast.success('Đã xóa tin nhắn thành công!');
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        toast.error('Xóa thất bại. Vui lòng thử lại.');
+      } finally {
+        setDeletingId(null);
+      }
+    }
+  };
+
+  const formatDate = (dateValue) => {
+    if (!dateValue) return '---';
+    try {
+      let dateObj;
+      if (dateValue.toDate && typeof dateValue.toDate === 'function') {
+        dateObj = dateValue.toDate();
+      } else if (dateValue instanceof Date) {
+        dateObj = dateValue;
+      } else if (dateValue.seconds) {
+        dateObj = new Date(dateValue.seconds * 1000);
+      } else {
+        dateObj = new Date(dateValue);
+      }
+      
+      return dateObj.toLocaleString('vi-VN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    } catch (e) {
+      console.error('Error formatting date:', e);
+      return 'Không rõ thời gian';
+    }
+  };
+
+  // Filter messages based on search term
+  const filteredMessages = messages.filter(msg => {
+    const term = searchTerm.toLowerCase();
+    return (
+      (msg.name && msg.name.toLowerCase().includes(term)) ||
+      (msg.email && msg.email.toLowerCase().includes(term)) ||
+      (msg.subject && msg.subject.toLowerCase().includes(term)) ||
+      (msg.message && msg.message.toLowerCase().includes(term))
+    );
+  });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 text-primary animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-slate-200">Messages</h2>
+      {/* Header and Controls */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-200 flex items-center gap-2">
+            <Inbox className="text-primary" /> Hộp thư liên hệ ({messages.length})
+          </h2>
+          <p className="text-xs text-slate-400 mt-1">Đọc và quản lý các tin nhắn từ khách truy cập website của bạn.</p>
+        </div>
+
+        {/* Search Bar */}
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" size={16} />
+          <input
+            type="text"
+            placeholder="Tìm kiếm tin nhắn..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800 rounded-lg pl-10 pr-4 py-2 text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+          />
+        </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[600px]">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-900/50">
-                <th className="p-4 text-slate-400 font-medium text-sm">Sender</th>
-                <th className="p-4 text-slate-400 font-medium text-sm">Subject</th>
-                <th className="p-4 text-slate-400 font-medium text-sm">Date</th>
-                <th className="p-4 text-slate-400 font-medium text-sm text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {messages.map((msg) => (
-                <tr key={msg.id} className={`border-b border-slate-800 hover:bg-slate-800/50 transition-colors ${!msg.read ? 'bg-slate-800/20' : ''}`}>
-                  <td className="p-4">
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${!msg.read ? 'bg-primary' : 'bg-transparent'}`}></div>
-                      <div>
-                        <p className={`font-medium ${!msg.read ? 'text-slate-200' : 'text-slate-400'}`}>{msg.name}</p>
-                        <p className="text-xs text-slate-500">{msg.email}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className={`p-4 ${!msg.read ? 'text-slate-200 font-medium' : 'text-slate-400 text-sm'}`}>{msg.subject}</td>
-                  <td className="p-4 text-slate-400 text-sm">{msg.date}</td>
-                  <td className="p-4 flex justify-end gap-3">
-                    <button className="text-slate-400 hover:text-primary transition-colors">
-                      <ExternalLink size={18} />
-                    </button>
-                    <button className="text-slate-400 hover:text-red-400 transition-colors">
-                      <Trash2 size={18} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Messages List Area */}
+      <div className="space-y-4">
+        {filteredMessages.map((msg) => (
+          <div 
+            key={msg.id} 
+            className="bg-slate-900 border border-slate-850 hover:border-slate-800 rounded-2xl p-6 transition-all duration-300 relative group overflow-hidden"
+          >
+            {/* Top row: Sender Meta and Actions */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-800/60">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                {/* Sender Name */}
+                <div className="flex items-center gap-2 text-slate-200 font-bold">
+                  <User size={16} className="text-slate-500" />
+                  <span>{msg.name}</span>
+                </div>
+
+                {/* Sender Email */}
+                <a 
+                  href={`mailto:${msg.email}`}
+                  className="flex items-center gap-2 text-sky-400 hover:text-primary transition-colors font-medium font-mono"
+                >
+                  <Mail size={16} className="text-slate-500" />
+                  <span>{msg.email}</span>
+                </a>
+
+                {/* Received Time */}
+                <div className="flex items-center gap-2 text-slate-400">
+                  <Calendar size={16} className="text-slate-500" />
+                  <span>{formatDate(msg.date)}</span>
+                </div>
+              </div>
+
+              {/* Action: Delete */}
+              <button
+                onClick={() => handleDelete(msg.id)}
+                disabled={deletingId === msg.id}
+                className="text-slate-500 hover:text-red-400 p-2 rounded-xl bg-slate-950/40 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-all self-end md:self-auto"
+                title="Xóa tin nhắn"
+              >
+                {deletingId === msg.id ? (
+                  <Loader2 size={18} className="animate-spin text-red-400" />
+                ) : (
+                  <Trash2 size={18} />
+                )}
+              </button>
+            </div>
+
+            {/* Message Details */}
+            <div className="pt-4 space-y-3">
+              {/* Subject */}
+              <div className="flex items-start gap-2">
+                <span className="text-xs font-mono bg-slate-950 text-primary px-2.5 py-1 rounded-md font-bold uppercase tracking-wider shrink-0 mt-0.5">
+                  Tiêu đề
+                </span>
+                <h4 className="text-slate-200 font-semibold text-base leading-snug">
+                  {msg.subject || 'Không có tiêu đề'}
+                </h4>
+              </div>
+
+              {/* Body */}
+              <div className="mt-2 bg-slate-950/40 border border-slate-850 p-4 rounded-xl">
+                <p className="text-slate-300 text-sm whitespace-pre-wrap leading-relaxed font-medium">
+                  {msg.message}
+                </p>
+              </div>
+            </div>
+          </div>
+        ))}
+
+        {/* Empty States */}
+        {filteredMessages.length === 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center flex flex-col items-center justify-center space-y-4">
+            <div className="p-4 rounded-full bg-slate-950 text-slate-600">
+              <Inbox size={48} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="text-lg font-bold text-slate-300">
+                {searchTerm ? 'Không tìm thấy kết quả phù hợp' : 'Hộp thư trống'}
+              </h4>
+              <p className="text-sm text-slate-500">
+                {searchTerm 
+                  ? 'Hãy thử thay đổi từ khóa tìm kiếm của bạn.' 
+                  : 'Tất cả các tin nhắn từ khách truy cập sẽ hiển thị ở đây.'}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

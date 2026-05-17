@@ -9,3 +9,5 @@ export default defineConfig({
     react()
   ],
 })
+
+// Force Vite dependency re-bundling reload version 3

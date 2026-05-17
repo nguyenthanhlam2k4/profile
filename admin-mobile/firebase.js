@@ -1,12 +1,54 @@
-import { collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc, query, orderBy, setDoc, increment, where, writeBatch, onSnapshot } from 'firebase/firestore';
-import { db } from '../firebase/config';
+import { initializeApp, getApps, getApp } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
+import { 
+  getFirestore, 
+  collection, 
+  doc, 
+  getDocs, 
+  getDoc, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc, 
+  query, 
+  orderBy, 
+  setDoc, 
+  increment, 
+  where, 
+  writeBatch, 
+  onSnapshot 
+} from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
+
+// Direct Firebase Credentials from .env
+const firebaseConfig = {
+  apiKey: "AIzaSyBH30uG0Et0mA0FBbXYt5mW5lv1v6XXrSQ",
+  authDomain: "thanhlam-profile.firebaseapp.com",
+  projectId: "thanhlam-profile",
+  storageBucket: "thanhlam-profile.firebasestorage.app",
+  messagingSenderId: "132083231647",
+  appId: "1:132083231647:web:3fa75310327fd525a2abaa",
+  measurementId: "G-5F4NQS688Z"
+};
+
+// Initialize Firebase App
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+export const auth = getAuth(app);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
+
+// --- FIRESTORE CRUD METHODS ---
 
 // Projects
 export const getProjects = async () => {
-  const projectsCol = collection(db, 'projects');
-  const q = query(projectsCol, orderBy('createdAt', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    const projectsCol = collection(db, 'projects');
+    const q = query(projectsCol, orderBy('createdAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching projects:', error);
+    return [];
+  }
 };
 
 export const addProject = async (projectData) => {
@@ -31,9 +73,14 @@ export const deleteProject = async (id) => {
 
 // Skills
 export const getSkills = async () => {
-  const skillsCol = collection(db, 'skills');
-  const snapshot = await getDocs(skillsCol);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    const skillsCol = collection(db, 'skills');
+    const snapshot = await getDocs(skillsCol);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching skills:', error);
+    return [];
+  }
 };
 
 export const addSkill = async (skillData) => {
@@ -52,9 +99,13 @@ export const deleteSkill = async (id) => {
 
 // Profile
 export const getProfile = async () => {
-  const profileDoc = await getDoc(doc(db, 'profile', 'main'));
-  if (profileDoc.exists()) {
-    return profileDoc.data();
+  try {
+    const profileDoc = await getDoc(doc(db, 'profile', 'main'));
+    if (profileDoc.exists()) {
+      return profileDoc.data();
+    }
+  } catch (error) {
+    console.error('Error fetching profile:', error);
   }
   return null;
 };
@@ -79,10 +130,15 @@ export const updateProfile = async (profileData) => {
 
 // Messages
 export const getMessages = async () => {
-  const messagesCol = collection(db, 'messages');
-  const q = query(messagesCol, orderBy('date', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    const messagesCol = collection(db, 'messages');
+    const q = query(messagesCol, orderBy('date', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching messages:', error);
+    return [];
+  }
 };
 
 export const subscribeMessages = (callback, onError) => {
@@ -99,13 +155,6 @@ export const subscribeMessages = (callback, onError) => {
   );
 };
 
-export const sendMessage = async (messageData) => {
-  return await addDoc(collection(db, 'messages'), {
-    ...messageData,
-    date: new Date()
-  });
-};
-
 export const deleteMessage = async (id) => {
   const messageRef = doc(db, 'messages', id);
   return await deleteDoc(messageRef);
@@ -113,9 +162,14 @@ export const deleteMessage = async (id) => {
 
 // Socials
 export const getSocials = async () => {
-  const socialsCol = collection(db, 'socials');
-  const snapshot = await getDocs(socialsCol);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    const socialsCol = collection(db, 'socials');
+    const snapshot = await getDocs(socialsCol);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching socials:', error);
+    return [];
+  }
 };
 
 export const addSocial = async (socialData) => {
@@ -132,23 +186,7 @@ export const deleteSocial = async (id) => {
   return await deleteDoc(socialRef);
 };
 
-// Stats & Views
-export const incrementViews = async () => {
-  const statsRef = doc(db, 'stats', 'views');
-  try {
-    const statsSnap = await getDoc(statsRef);
-    if (!statsSnap.exists()) {
-      await setDoc(statsRef, { count: 1 });
-    } else {
-      await updateDoc(statsRef, {
-        count: increment(1)
-      });
-    }
-  } catch (error) {
-    console.error('Error incrementing views:', error);
-  }
-};
-
+// Dashboard Stats
 export const getDashboardStats = async () => {
   try {
     const [projects, skills, viewsSnap, messages] = await Promise.all([
@@ -162,20 +200,37 @@ export const getDashboardStats = async () => {
       totalProjects: projects.length,
       totalSkills: skills.length,
       profileViews: viewsSnap.exists() ? viewsSnap.data().count : 0,
-      messages: messages.length
+      messagesCount: messages.length
     };
   } catch (error) {
     console.error('Error getting dashboard stats:', error);
-    return null;
+    return {
+      totalProjects: 0,
+      totalSkills: 0,
+      profileViews: 0,
+      messagesCount: 0
+    };
   }
 };
 
 // Gallery
 export const getGallery = async () => {
-  const galleryCol = collection(db, 'gallery');
-  const q = query(galleryCol, orderBy('postedAt', 'desc'));
-  const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  try {
+    const galleryCol = collection(db, 'gallery');
+    const q = query(galleryCol, orderBy('postedAt', 'desc'));
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  } catch (error) {
+    console.error('Error fetching gallery:', error);
+    return [];
+  }
+};
+
+export const addGalleryItem = async (data) => {
+  return await addDoc(collection(db, 'gallery'), {
+    ...data,
+    postedAt: new Date().toISOString()
+  });
 };
 
 export const subscribeGallery = (callback, onError) => {
@@ -192,18 +247,11 @@ export const subscribeGallery = (callback, onError) => {
   );
 };
 
-export const addGalleryItem = async (data) => {
-  return await addDoc(collection(db, 'gallery'), {
-    ...data,
-    createdAt: new Date()
-  });
-};
-
 export const updateGalleryItem = async (id, data) => {
   const ref = doc(db, 'gallery', id);
   return await updateDoc(ref, {
     ...data,
-    updatedAt: new Date()
+    updatedAt: new Date().toISOString()
   });
 };
 
@@ -227,4 +275,3 @@ export const setHomeGalleryImage = async (id) => {
   
   return await batch.commit();
 };
-

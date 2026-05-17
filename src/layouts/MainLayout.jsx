@@ -42,10 +42,10 @@ export default function MainLayout() {
   };
 
   const navLinks = [
-    { href: "#about", label: t('nav.about') },
-    { href: "#skills", label: t('nav.skills') },
-    { href: "#projects", label: t('nav.projects') },
-    { href: "#contact", label: t('nav.contact') },
+    { href: "/#about", label: t('nav.about') },
+    { href: "/#skills", label: t('nav.skills') },
+    { href: "/#projects", label: t('nav.projects') },
+    { href: "/#contact", label: t('nav.contact') },
     { href: "/gallery", label: "Gallery" },
   ];
 
@@ -80,7 +80,7 @@ export default function MainLayout() {
         <div className={`absolute inset-0 bg-grid-slate-900/[0.08] ${theme === 'dark' ? 'opacity-100' : 'opacity-40'} [mask-image:radial-gradient(ellipse_at_center,transparent_20%,black)]`}></div>
       </div>
 
-      <header className={`fixed top-0 w-full z-50 transition-all border-b ${theme === 'dark' ? 'bg-slate-950/40 border-white/5' : 'bg-white/40 border-slate-200'} backdrop-blur-md`}>
+      <header className={`fixed top-0 w-full z-50 transition-all ${isMenuOpen ? 'border-b-0 bg-transparent' : `border-b backdrop-blur-md ${theme === 'dark' ? 'bg-slate-950/40 border-white/5' : 'bg-white/40 border-slate-200'}`}`}>
         <div className="container mx-auto px-6 py-4 flex justify-between items-center">
           <Link to="/" className={`text-xl font-black tracking-tighter ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
             NTL<span className="text-primary">.</span>
@@ -131,7 +131,7 @@ export default function MainLayout() {
             exit={{ opacity: 0 }}
             className={`fixed inset-0 z-40 md:hidden ${theme === 'dark' ? 'bg-slate-950/98' : 'bg-white/98'} backdrop-blur-2xl flex flex-col`}
           >
-            <div className="flex-1 flex flex-col justify-center px-10 gap-6">
+            <div className="flex-1 flex flex-col justify-start pt-28 px-10 gap-8">
               {navLinks.map((link, idx) => (
                 <motion.div
                   key={link.href}
@@ -139,7 +139,7 @@ export default function MainLayout() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: idx * 0.1 }}
                 >
-                  {link.href.startsWith('#') ? (
+                  {link.href.includes('#') ? (
                     <a 
                       href={link.href} 
                       onClick={() => setIsMenuOpen(false)}

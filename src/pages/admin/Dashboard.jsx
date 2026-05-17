@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, FolderKanban, Wrench, Eye, Loader2 } from 'lucide-react';
+import { Users, FolderKanban, Wrench, Eye, Loader2, Mail } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { getDashboardStats } from '../../services/firebase';
 
@@ -26,6 +26,7 @@ export default function Dashboard() {
     { label: t('admin.total_projects'), value: statsData?.totalProjects || '0', icon: FolderKanban, color: 'text-blue-400', bg: 'bg-blue-400/10' },
     { label: t('admin.total_skills'), value: statsData?.totalSkills || '0', icon: Wrench, color: 'text-purple-400', bg: 'bg-purple-400/10' },
     { label: t('admin.profile_views'), value: statsData?.profileViews?.toLocaleString() || '0', icon: Eye, color: 'text-green-400', bg: 'bg-green-400/10' },
+    { label: t('admin.messages'), value: statsData?.messages || '0', icon: Mail, color: 'text-sky-400', bg: 'bg-sky-400/10' },
   ];
 
   if (loading) {
@@ -38,7 +39,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, idx) => (
           <div key={idx} className="bg-slate-900 border border-slate-800 rounded-xl p-6 flex items-center gap-4">
             <div className={`p-4 rounded-lg ${stat.bg} ${stat.color}`}>
