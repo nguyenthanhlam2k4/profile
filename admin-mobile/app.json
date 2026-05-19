@@ -13,9 +13,14 @@
       "backgroundColor": "#020617"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.thanhlam2004.adminmobile",
+      "infoPlist": {
+        "NSFaceIDUsageDescription": "NTL Admin yêu cầu quyền sử dụng FaceID để đăng nhập và bảo mật ứng dụng."
+      }
     },
     "android": {
+      "package": "com.thanhlam2004.adminmobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
@@ -29,7 +34,13 @@
       "baseUrl": "/admin"
     },
     "plugins": [
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "NTL Admin yêu cầu quyền sử dụng FaceID để đăng nhập và bảo mật ứng dụng."
+        }
+      ]
     ],
     "extra": {
       "eas": {
@@ -39,7 +50,9 @@
     "owner": "thanhlam2004",
     "runtimeVersion": "exposdk:54.0.0",
     "updates": {
-      "url": "https://u.expo.dev/c12eb233-cdaf-435f-9488-0ef06239adbe"
+      "url": "https://u.expo.dev/c12eb233-cdaf-435f-9488-0ef06239adbe",
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0
     }
   }
 }

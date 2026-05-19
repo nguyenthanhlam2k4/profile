@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   StyleSheet, 
   Text, 
@@ -13,11 +13,21 @@ import {
   SafeAreaView, 
   StatusBar,
   Dimensions,
-  Image
+  Image,
+  Switch,
+  Linking,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from 'firebase/auth';
+import { doc, updateDoc } from 'firebase/firestore';
 import * as ImagePicker from 'expo-image-picker';
+import * as Notifications from 'expo-notifications';
+import * as LocalAuthentication from 'expo-local-authentication';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Updates from 'expo-updates';
+import ImageCropper from './ImageCropper';
 
 // Import Icons
 import { 
@@ -40,8 +50,16 @@ import {
   Star,
   CheckCircle,
   FileText,
-  Camera
+  Camera,
+  ArrowUp,
+  ArrowDown,
+  GripVertical,
+  Bot,
+  HelpCircle
 } from 'lucide-react-native';
+
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import DraggableFlatList, { ScaleDecorator } from 'react-native-draggable-flatlist';
 
 // Import Firebase and Cloudinary Services
 import { 
@@ -51,24 +69,45 @@ import {
   addProject,
   updateProject,
   deleteProject,
+  updateProjectsOrder,
+  subscribeProjects,
   getSkills,
   addSkill,
   updateSkill,
   deleteSkill,
+  updateSkillsOrder,
+  subscribeSkills,
   getProfile,
   updateProfile,
+  subscribeProfile,
   subscribeMessages,
   deleteMessage,
   getSocials,
   updateSocial,
   getDashboardStats,
+  subscribeViews,
   subscribeGallery,
   addGalleryItem,
   updateGalleryItem,
   deleteGalleryItem,
-  setHomeGalleryImage
+  setHomeGalleryImage,
+  subscribeAiKb,
+  addAiKb,
+  updateAiKb,
+  deleteAiKb,
+  subscribeAiUnanswered,
+  deleteAiUnanswered
 } from './firebase';
 import { uploadImage } from './cloudinary';
+
+// Configure notification appearance
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: true,
+  }),
+});
 
 const { width } = Dimensions.get('window');
 
@@ -79,6 +118,13 @@ export default function App() {
   const [password, setPassword] = useState('');
   const [authLoading, setAuthLoading] = useState(true);
   const [loginLoading, setLoginLoading] = useState(false);
+  const prevMessageCount = useRef(null); // track previous count to detect new messages
+  const [isBiometricSupported, setIsBiometricSupported] = useState(false);
+  const [isBiometricEnabled, setIsBiometricEnabled] = useState(false);
+  const [isAppLocked, setIsAppLocked] = useState(false);
+  const [lockPassword, setLockPassword] = useState('');
+  const [lockPasswordLoading, setLockPasswordLoading] = useState(false);
+  const [isPasscodeBypassVisible, setIsPasscodeBypassVisible] = useState(false);
 
   // App Navigation & Tabs State
   const [activeTab, setActiveTab] = useState('dashboard'); // dashboard | messages | projects | skills | gallery | profile
@@ -106,11 +152,51 @@ export default function App() {
   const [gallery, setGallery] = useState([]);
   const [profile, setProfile] = useState({
     name: '', title: '', email: '', phone: '', location: '', bio: '',
-    github: '', linkedin: '', facebook: ''
+    github: '', linkedin: '', facebook: '', aiPrompt: ''
   });
 
   // Modal / Detail States
   const [selectedMessage, setSelectedMessage] = useState(null);
+  const [replyText, setReplyText] = useState('');
+
+  // AI Q&A Management States
+  const [aiKb, setAiKb] = useState([]);
+  const [aiUnanswered, setAiUnanswered] = useState([]);
+  const [aiQaModalVisible, setAiQaModalVisible] = useState(false);
+  const [aiQaForm, setAiQaForm] = useState({ id: null, question: '', answer: '' });
+  const [answeringQuestionId, setAnsweringQuestionId] = useState(null);
+  const [aiQaTab, setAiQaTab] = useState('kb'); // 'kb' | 'unanswered'
+
+  const liveSelectedMessage = selectedMessage 
+    ? messages.find(m => m.id === selectedMessage.id) || selectedMessage 
+    : null;
+
+  const [cropperConfig, setCropperConfig] = useState({
+    visible: false,
+    imageUri: '',
+    imageWidth: 0,
+    imageHeight: 0,
+    aspectRatio: 16 / 9,
+    onSuccess: null
+  });
+
+  const handleCropComplete = async (croppedUri) => {
+    setCropperConfig(prev => ({ ...prev, visible: false }));
+    setImageUploading(true);
+    try {
+      const secureUrl = await uploadImage(croppedUri);
+      if (cropperConfig.onSuccess) {
+        cropperConfig.onSuccess(secureUrl);
+      }
+      showToast('Tải ảnh thành công!');
+    } catch (error) {
+      console.error('Upload cropped image failed:', error);
+      Alert.alert('Lỗi tải ảnh', 'Không thể upload ảnh sau khi cắt, vui lòng kiểm tra kết nối!');
+    } finally {
+      setImageUploading(false);
+    }
+  };
+  const [replyLoading, setReplyLoading] = useState(false);
   const [projectModal, setProjectModal] = useState({ visible: false, mode: 'add', data: null });
   const [skillModal, setSkillModal] = useState({ visible: false, mode: 'add', data: null });
   const [galleryModal, setGalleryModal] = useState({ visible: false, mode: 'add', data: null });
@@ -127,61 +213,172 @@ export default function App() {
   const [galleryForm, setGalleryForm] = useState({
     title: '', url: '', postedAt: ''
   });
+  // Trigger biometric authentication
+  const triggerBiometricAuth = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({
+        promptMessage: 'Xác thực để truy cập NTL Admin',
+        fallbackLabel: 'Nhập mật mã thiết bị',
+        disableDeviceFallback: false,
+      });
+
+      if (result.success) {
+        setIsAppLocked(false);
+        showToast('Mở khóa thành công!');
+      } else {
+        Alert.alert(
+          'Xác thực thất bại',
+          `Kết quả xác thực: ${JSON.stringify(result)}`,
+          [
+            { text: 'Thử lại', onPress: () => setTimeout(triggerBiometricAuth, 500) },
+            { text: 'OK' }
+          ]
+        );
+      }
+    } catch (e) {
+      console.error('Biometric authentication error:', e);
+      Alert.alert('Lỗi Ngoại Lệ Sinh Trắc', `Ngoại lệ: ${e.message || JSON.stringify(e)}`);
+    }
+  };
+
+  // Handle passcode bypass using Firebase password
+  const handleUnlockWithPassword = async () => {
+    if (!lockPassword.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập mật khẩu.');
+      return;
+    }
+    setLockPasswordLoading(true);
+    try {
+      if (user && user.email) {
+        const { signInWithEmailAndPassword } = require('firebase/auth');
+        await signInWithEmailAndPassword(auth, user.email, lockPassword);
+        setIsAppLocked(false);
+        setLockPassword('');
+        setIsPasscodeBypassVisible(false);
+        showToast('Mở khóa thành công!');
+      } else {
+        Alert.alert('Lỗi', 'Không tìm thấy thông tin tài khoản.');
+      }
+    } catch (err) {
+      console.error('Password unlock error:', err);
+      Alert.alert('Thất bại', 'Mật khẩu không chính xác, vui lòng thử lại.');
+    } finally {
+      setLockPasswordLoading(false);
+    }
+  };
+
+  // Check biometric support and enabled state on app start
+  useEffect(() => {
+    const checkBiometrics = async () => {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      setIsBiometricSupported(hasHardware);
+      
+      const enabledVal = await AsyncStorage.getItem('isBiometricEnabled');
+      if (enabledVal === 'true') {
+        setIsBiometricEnabled(true);
+      }
+    };
+    checkBiometrics();
+  }, []);
+
+  // Request notification permissions
+  const requestNotificationPermission = async () => {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Notification permission not granted');
+    }
+  };
 
   // Handle Authentication status on load
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (usr) => {
+    const unsubscribe = onAuthStateChanged(auth, async (usr) => {
       setUser(usr);
       setAuthLoading(false);
       if (usr) {
         loadInitialData();
+        requestNotificationPermission();
+        
+        // Lock screen if biometric is enabled
+        const enabledVal = await AsyncStorage.getItem('isBiometricEnabled');
+        if (enabledVal === 'true') {
+          setIsAppLocked(true);
+          setTimeout(() => {
+            triggerBiometricAuth();
+          }, 300);
+        }
       }
     });
     return unsubscribe;
   }, []);
 
-  // Fetch Dashboard and real-time database items
+  // Fetch Dashboard and initial items
   const loadInitialData = async () => {
     setLoading(true);
     try {
       const stats = await getDashboardStats();
       if (stats) setGlobalStats(stats);
-
-      const projs = await getProjects();
-      setProjects(projs);
-
-      const skls = await getSkills();
-      setSkills(skls);
-
-      const prof = await getProfile();
-      if (prof) {
-        setProfile({
-          name: prof.name || '',
-          title: prof.title || '',
-          email: prof.email || '',
-          phone: prof.phone || '',
-          location: prof.location || '',
-          bio: prof.bio || '',
-          github: prof.github || '',
-          linkedin: prof.linkedin || '',
-          facebook: prof.facebook || ''
-        });
-      }
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('Error loading initial data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Real-time messages listener
+  // Drag and drop reordering handlers
+  const handleProjectsDragEnd = async ({ data: newData }) => {
+    setProjects(newData);
+    try {
+      await updateProjectsOrder(newData);
+      showToast('Đã đồng bộ thứ tự dự án lên Website!');
+    } catch (error) {
+      console.error('Error updating projects order:', error);
+      showToast('Lỗi đồng bộ thứ tự dự án!');
+    }
+  };
+
+  const handleSkillsDragEnd = async ({ data: newData }) => {
+    setSkills(newData);
+    try {
+      await updateSkillsOrder(newData);
+      showToast('Đã đồng bộ thứ tự kỹ năng lên Website!');
+    } catch (error) {
+      console.error('Error updating skills order:', error);
+      showToast('Lỗi đồng bộ thứ tự kỹ năng!');
+    }
+  };
+
+  // Real-time messages listener with push notification
   useEffect(() => {
     if (!user) return;
     const unsubscribe = subscribeMessages((msgs) => {
+      // Detect new message: only notify after first load (prevMessageCount is set)
+      if (prevMessageCount.current !== null && msgs.length > prevMessageCount.current) {
+        const newest = msgs[0]; // messages are ordered by newest first
+        Notifications.scheduleNotificationAsync({
+          content: {
+            title: `📩 Tin nhắn mới từ ${newest?.name || 'Khách'}`,
+            body: newest?.message || 'Bạn có một tin nhắn mới!',
+            sound: true,
+          },
+          trigger: null, // fire immediately
+        });
+      }
+      prevMessageCount.current = msgs.length;
       setMessages(msgs);
       setGlobalStats(prev => ({ ...prev, messagesCount: msgs.length }));
     }, (err) => {
       console.error('Messages stream error:', err);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // Real-time views listener
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeViews((count) => {
+      setGlobalStats(prev => ({ ...prev, profileViews: count }));
+    }, (err) => {
+      console.error('Views stream error:', err);
     });
     return unsubscribe;
   }, [user]);
@@ -197,6 +394,97 @@ export default function App() {
     return unsubscribe;
   }, [user]);
 
+  // Real-time projects listener
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeProjects((projs) => {
+      setProjects(projs);
+      setGlobalStats(prev => ({ ...prev, totalProjects: projs.length }));
+    }, (err) => {
+      console.error('Projects stream error:', err);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // Real-time skills listener
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeSkills((skls) => {
+      setSkills(skls);
+      setGlobalStats(prev => ({ ...prev, totalSkills: skls.length }));
+    }, (err) => {
+      console.error('Skills stream error:', err);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // Real-time profile listener
+  useEffect(() => {
+    if (!user) return;
+    const unsubscribe = subscribeProfile((prof) => {
+      if (prof) {
+        setProfile({
+          name: prof.name || '',
+          title: prof.title || '',
+          email: prof.email || '',
+          phone: prof.phone || '',
+          location: prof.location || '',
+          bio: prof.bio || '',
+          github: prof.github || '',
+          linkedin: prof.linkedin || '',
+          facebook: prof.facebook || '',
+          aiPrompt: prof.aiPrompt || ''
+        });
+      }
+    }, (err) => {
+      console.error('Profile stream error:', err);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  // Real-time AI Q&A listener
+  useEffect(() => {
+    if (!user) return;
+    const unsubKb = subscribeAiKb((data) => setAiKb(data), (err) => console.error('AI KB subscribe error:', err));
+    const unsubUnanswered = subscribeAiUnanswered((data) => setAiUnanswered(data), (err) => console.error('AI Unanswered subscribe error:', err));
+    return () => {
+      unsubKb();
+      unsubUnanswered();
+    };
+  }, [user]);
+
+  // Real-time EAS OTA updates listener/checking
+  const { isUpdateAvailable, isUpdatePending } = Updates.useUpdates();
+
+  useEffect(() => {
+    if (isUpdateAvailable) {
+      Updates.fetchUpdateAsync().catch(err => console.error("EAS Fetch Update Error:", err));
+    }
+  }, [isUpdateAvailable]);
+
+  useEffect(() => {
+    if (isUpdatePending) {
+      Alert.alert(
+        '🔄 Bản cập nhật mới',
+        'Đã tải xong bản cập nhật mới cho NTL Admin. Khởi động lại ứng dụng ngay?',
+        [
+          { text: 'Để sau', style: 'cancel' },
+          { 
+            text: 'Cập nhật ngay', 
+            onPress: async () => {
+              try {
+                await Updates.reloadAsync();
+              } catch (e) {
+                console.error('Error reloading app:', e);
+              }
+            }
+          }
+        ],
+        { cancelable: false }
+      );
+    }
+  }, [isUpdatePending]);
+
   // Handle Log In
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
@@ -206,11 +494,177 @@ export default function App() {
     setLoginLoading(true);
     try {
       await signInWithEmailAndPassword(auth, email.trim(), password.trim());
+      
+      // Proactively prompt to enable biometrics if supported but not yet enabled
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      if (hasHardware) {
+        const enabledVal = await AsyncStorage.getItem('isBiometricEnabled');
+        if (enabledVal !== 'true') {
+          Alert.alert(
+            'Kích hoạt Face ID / Touch ID',
+            'Bạn có muốn sử dụng Face ID hoặc vân tay để đăng nhập nhanh hơn cho lần sau không?',
+            [
+              { text: 'Để sau', style: 'cancel' },
+              { 
+                text: 'Kích hoạt ngay', 
+                onPress: async () => {
+                  await AsyncStorage.setItem('isBiometricEnabled', 'true');
+                  setIsBiometricEnabled(true);
+                  showToast('Đã kích hoạt Face ID / Touch ID!');
+                }
+              }
+            ]
+          );
+        }
+      }
     } catch (error) {
       console.error('Login error:', error);
       Alert.alert('Đăng nhập thất bại', 'Sai Email hoặc Mật khẩu quản trị!');
     } finally {
       setLoginLoading(false);
+    }
+  };
+
+  // Switch toggle handler
+  const handleToggleBiometrics = async (value) => {
+    try {
+      if (value) {
+        const result = await LocalAuthentication.authenticateAsync({
+          promptMessage: 'Xác minh để kích hoạt Face ID / Touch ID',
+          disableDeviceFallback: false,
+        });
+
+        if (result.success) {
+          await AsyncStorage.setItem('isBiometricEnabled', 'true');
+          setIsBiometricEnabled(true);
+          showToast('Đã kích hoạt Face ID / Touch ID!');
+        } else {
+          setIsBiometricEnabled(false);
+          Alert.alert(
+            'Xác thực thất bại', 
+            `Kết quả xác thực: ${JSON.stringify(result)}`
+          );
+        }
+      } else {
+        await AsyncStorage.setItem('isBiometricEnabled', 'false');
+        setIsBiometricEnabled(false);
+        showToast('Đã tắt Face ID / Touch ID.');
+      }
+    } catch (e) {
+      console.error('Error toggling biometrics:', e);
+      Alert.alert(
+        'Lỗi Ngoại Lệ Sinh Trắc', 
+        `Ngoại lệ: ${e.message || JSON.stringify(e)}`
+      );
+    }
+  };
+
+  // Run biometric diagnostics
+  const runBiometricDiagnostics = async () => {
+    try {
+      const hasHardware = await LocalAuthentication.hasHardwareAsync();
+      const isEnrolled = await LocalAuthentication.isEnrolledAsync();
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
+      const enabledVal = await AsyncStorage.getItem('isBiometricEnabled');
+      
+      let typesStr = 'Không có';
+      if (types && types.length > 0) {
+        typesStr = types.map(t => {
+          if (t === 1) return 'Vân tay (TouchID)';
+          if (t === 2) return 'Khuôn mặt (FaceID)';
+          return `Khác (${t})`;
+        }).join(', ');
+      }
+      
+      Alert.alert(
+        'Chẩn Đoán Sinh Trắc Học',
+        `1. Hỗ trợ phần cứng: ${hasHardware ? 'Có' : 'Không'}\n` +
+        `2. Đã cài FaceID/Vân tay hệ thống: ${isEnrolled ? 'Có' : 'Không'}\n` +
+        `3. Các loại hỗ trợ: ${typesStr}\n` +
+        `4. Trạng thái trong App: ${enabledVal === 'true' ? 'Đã bật' : 'Chưa bật'}\n\n` +
+        `💡 Hướng dẫn:\n` +
+        `- Nếu phần cứng báo 'Không', thiết bị của bạn không có camera FaceID hoặc cảm biến vân tay.\n` +
+        `- Nếu phần hệ thống báo 'Không', hãy vào Cài đặt của iPhone -> Face ID & Mật mã để thiết lập khuôn mặt trước!\n` +
+        `- Đảm bảo ứng dụng Expo Go đã được cấp quyền FaceID trong cài đặt hệ thống của iPhone.`,
+        [{ text: 'OK' }]
+      );
+    } catch (error) {
+      Alert.alert('Lỗi Chẩn Đoán', error.message || 'Không thể chạy chẩn đoán');
+    }
+  };
+  // Handle send email reply (Google Gmail Integration)
+  const handleSendEmailReply = async () => {
+    if (!replyText.trim() || !liveSelectedMessage) {
+      Alert.alert('Thiếu thông tin', 'Vui lòng nhập nội dung phản hồi.');
+      return;
+    }
+
+    setReplyLoading(true);
+    try {
+      const subject = `Re: ${liveSelectedMessage.subject || 'Liên hệ từ Website'}`;
+      const body = replyText;
+      
+      // On iOS/Android, native Gmail app deep link:
+      const gmailAppUrl = `googlegmail:///co?to=${liveSelectedMessage.email}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
+      // Gmail web fallback
+      const gmailWebUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${liveSelectedMessage.email}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      
+      // Direct trial block to bypass iOS canOpenURL privacy restrictions inside default Expo Go app
+      try {
+        await Linking.openURL(gmailAppUrl);
+        showToast('Đã mở ứng dụng Gmail!');
+      } catch (openAppErr) {
+        console.log('Cannot open native Gmail app directly, falling back to Web Gmail:', openAppErr);
+        await Linking.openURL(gmailWebUrl);
+        showToast('Đã mở Gmail trên Trình duyệt!');
+      }
+      
+      // Save reply history to Firestore
+      const msgRef = doc(db, 'messages', liveSelectedMessage.id);
+      await updateDoc(msgRef, {
+        replied: true,
+        replyText: replyText,
+        repliedAt: new Date().toISOString()
+      });
+      
+      setReplyText('');
+      setSelectedMessage(null);
+    } catch (error) {
+      console.error('Error sending email reply:', error);
+      try {
+        const msgRef = doc(db, 'messages', liveSelectedMessage.id);
+        await updateDoc(msgRef, {
+          replied: true,
+          replyText: replyText,
+          repliedAt: new Date().toISOString()
+        });
+        
+        Alert.alert(
+          'Đã Lưu Phản Hồi',
+          `Hệ thống đã lưu nội dung phản hồi. Thiết bị không hỗ trợ tự động mở liên kết Gmail.\n\nEmail nhận: ${liveSelectedMessage.email}`,
+          [{ text: 'OK', onPress: () => {
+            setReplyText('');
+            setSelectedMessage(null);
+          }}]
+        );
+      } catch (dbErr) {
+        console.error('Database update error during general reply fallback:', dbErr);
+        Alert.alert('Lỗi', 'Không thể lưu phản hồi.');
+      }
+    } finally {
+      setReplyLoading(false);
+    }
+  };
+
+  const handleLogoutForce = async () => {
+    try {
+      await signOut(auth);
+      setUser(null);
+      setIsAppLocked(false);
+      showToast('Đã đăng xuất.');
+    } catch (error) {
+      console.error('Direct logout error:', error);
     }
   };
 
@@ -228,6 +682,7 @@ export default function App() {
             try {
               await signOut(auth);
               setUser(null);
+              setIsAppLocked(false);
             } catch (error) {
               console.error('Logout error:', error);
             }
@@ -238,7 +693,16 @@ export default function App() {
   };
 
   // Pick Image from mobile gallery and upload to Cloudinary
-  const pickAndUploadImage = async (onSuccess) => {
+  const pickAndUploadImage = async (aspectRatio, onSuccess) => {
+    let ratio = 16 / 9;
+    let successCallback = onSuccess;
+    if (typeof aspectRatio === 'function') {
+      successCallback = aspectRatio;
+      ratio = 16 / 9;
+    } else if (typeof aspectRatio === 'number') {
+      ratio = aspectRatio;
+    }
+
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Quyền truy cập', 'Ứng dụng cần quyền truy cập thư viện để chọn ảnh!');
@@ -247,27 +711,33 @@ export default function App() {
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: false, // Turn off native system cropping because we use our custom ImageCropper!
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets && result.assets[0].uri) {
-      setImageUploading(true);
-      try {
-        const secureUrl = await uploadImage(result.assets[0].uri);
-        onSuccess(secureUrl);
-        showToast('Tải ảnh thành công!');
-      } catch (error) {
-        console.error('Upload image failed:', error);
-        Alert.alert('Lỗi tải ảnh', 'Không thể upload ảnh, vui lòng kiểm tra kết nối!');
-      } finally {
-        setImageUploading(false);
-      }
+      setCropperConfig({
+        visible: true,
+        imageUri: result.assets[0].uri,
+        imageWidth: result.assets[0].width || 0,
+        imageHeight: result.assets[0].height || 0,
+        aspectRatio: ratio,
+        onSuccess: successCallback
+      });
     }
   };
 
   // Pick Image from mobile camera (Locket style)
-  const takeLocketPhoto = async (onSuccess) => {
+  const takeLocketPhoto = async (aspectRatio, onSuccess) => {
+    let ratio = 1 / 1;
+    let successCallback = onSuccess;
+    if (typeof aspectRatio === 'function') {
+      successCallback = aspectRatio;
+      ratio = 1 / 1;
+    } else if (typeof aspectRatio === 'number') {
+      ratio = aspectRatio;
+    }
+
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Quyền truy cập', 'Ứng dụng cần quyền sử dụng máy ảnh để chụp ảnh!');
@@ -276,22 +746,19 @@ export default function App() {
 
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ['images'],
-      allowsEditing: true,
+      allowsEditing: false, // Turn off native system cropping
       quality: 0.8,
     });
 
     if (!result.canceled && result.assets && result.assets[0].uri) {
-      setImageUploading(true);
-      try {
-        const secureUrl = await uploadImage(result.assets[0].uri);
-        onSuccess(secureUrl);
-        showToast('Tải ảnh thành công!');
-      } catch (error) {
-        console.error('Upload image failed:', error);
-        Alert.alert('Lỗi tải ảnh', 'Không thể upload ảnh, vui lòng kiểm tra kết nối!');
-      } finally {
-        setImageUploading(false);
-      }
+      setCropperConfig({
+        visible: true,
+        imageUri: result.assets[0].uri,
+        imageWidth: result.assets[0].width || 0,
+        imageHeight: result.assets[0].height || 0,
+        aspectRatio: ratio,
+        onSuccess: successCallback
+      });
     }
   };
 
@@ -462,7 +929,8 @@ export default function App() {
         bio: profile.bio.trim(),
         github: profile.github.trim(),
         linkedin: profile.linkedin.trim(),
-        facebook: profile.facebook.trim()
+        facebook: profile.facebook.trim(),
+        aiPrompt: (profile.aiPrompt || '').trim()
       });
       Alert.alert('Thành công', 'Đã cập nhật thông tin cá nhân lên trang chủ!');
     } catch (error) {
@@ -498,7 +966,7 @@ export default function App() {
 
   // Gallery CRUD Handlers
   const handleLocketCapture = () => {
-    takeLocketPhoto((secureUrl) => {
+    takeLocketPhoto(1 / 1, (secureUrl) => {
       setGalleryForm({
         title: '',
         url: secureUrl,
@@ -583,6 +1051,90 @@ export default function App() {
     }
   };
 
+  // AI Q&A Handlers
+  const handleSaveAiQa = async () => {
+    if (!aiQaForm.question.trim() || !aiQaForm.answer.trim()) {
+      Alert.alert('Lỗi', 'Vui lòng nhập đầy đủ câu hỏi và câu trả lời!');
+      return;
+    }
+    setLoading(true);
+    try {
+      if (aiQaForm.id) {
+        await updateAiKb(aiQaForm.id, {
+          question: aiQaForm.question.trim(),
+          answer: aiQaForm.answer.trim()
+        });
+        showToast('Đã cập nhật cặp Q&A!');
+      } else {
+        await addAiKb({
+          question: aiQaForm.question.trim(),
+          answer: aiQaForm.answer.trim()
+        });
+        if (answeringQuestionId) {
+          await deleteAiUnanswered(answeringQuestionId);
+        }
+        showToast('Đã thêm bài học Q&A mới!');
+      }
+      setAiQaForm({ id: null, question: '', answer: '' });
+      setAnsweringQuestionId(null);
+    } catch (error) {
+      console.error('Save AI QA failed:', error);
+      Alert.alert('Thất bại', 'Không thể lưu bài học AI Q&A.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteAiQa = (id) => {
+    Alert.alert(
+      'Xóa Q&A',
+      'Bạn muốn xóa bài học Q&A này khỏi AI?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await deleteAiKb(id);
+              showToast('Đã xóa bài học.');
+            } catch (error) {
+              console.error('Delete AI QA failed:', error);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleDeleteAiUnanswered = (id) => {
+    Alert.alert(
+      'Xóa câu hỏi',
+      'Xóa câu hỏi bị bỏ lỡ này khỏi danh sách?',
+      [
+        { text: 'Hủy', style: 'cancel' },
+        {
+          text: 'Xóa',
+          style: 'destructive',
+          onPress: async () => {
+            setLoading(true);
+            try {
+              await deleteAiUnanswered(id);
+              showToast('Đã xóa câu hỏi.');
+            } catch (error) {
+              console.error('Delete unanswered failed:', error);
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
   // Format Date safely
   const formatMsgDate = (dateVal) => {
     if (!dateVal) return 'Vừa xong';
@@ -599,78 +1151,170 @@ export default function App() {
   // Splash Loading Screen
   if (authLoading) {
     return (
-      <View style={styles.splashContainer}>
-        <ActivityIndicator size="large" color="#06b6d4" />
-        <Text style={styles.splashText}>Đang tải cấu hình kết nối...</Text>
-      </View>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <View style={styles.splashContainer}>
+          <ActivityIndicator size="large" color="#06b6d4" />
+          <Text style={styles.splashText}>Đang tải cấu hình kết nối...</Text>
+        </View>
+      </GestureHandlerRootView>
     );
   }
 
   // --- LOGIN SCREEN ---
   if (!user) {
     return (
-      <SafeAreaView style={styles.loginContainer}>
-        <StatusBar barStyle="light-content" />
-        <ScrollView contentContainerStyle={styles.loginScroll}>
-          <View style={styles.loginCard}>
-            <View style={styles.logoCircle}>
-              <Settings size={36} color="#06b6d4" />
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView style={styles.loginContainer}>
+          <StatusBar barStyle="light-content" />
+          <ScrollView contentContainerStyle={styles.loginScroll}>
+            <View style={styles.loginCard}>
+              <View style={styles.logoCircle}>
+                <Settings size={36} color="#06b6d4" />
+              </View>
+              <Text style={styles.loginTitle}>NTL. ADMIN</Text>
+              <Text style={styles.loginSubtitle}>Cổng đồng bộ quản trị di động</Text>
+              
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>EMAIL QUẢN TRỊ</Text>
+                <View style={styles.inputWrapper}>
+                  <User size={18} color="#64748b" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="admin@example.com"
+                    placeholderTextColor="#475569"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
+                </View>
+              </View>
+  
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>MẬT KHẨU BẢO MẬT</Text>
+                <View style={styles.inputWrapper}>
+                  <Lock size={18} color="#64748b" style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="••••••••"
+                    placeholderTextColor="#475569"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
+  
+              <TouchableOpacity 
+                style={styles.loginButton} 
+                onPress={handleLogin}
+                disabled={loginLoading}
+              >
+                {loginLoading ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.loginButtonText}>Đăng Nhập Kết Nối</Text>
+                )}
+              </TouchableOpacity>
             </View>
-            <Text style={styles.loginTitle}>NTL. ADMIN</Text>
-            <Text style={styles.loginSubtitle}>Cổng đồng bộ quản trị di động</Text>
+          </ScrollView>
+        </SafeAreaView>
+      </GestureHandlerRootView>
+    );
+  }
+
+  // --- BIOMETRIC LOCK SCREEN ---
+  if (isAppLocked) {
+    return (
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaView style={styles.lockContainer}>
+          <StatusBar barStyle="light-content" />
+          <View style={styles.lockBox}>
+            <View style={styles.lockIconCircle}>
+              <Lock size={36} color="#06b6d4" />
+            </View>
+            <Text style={styles.lockTitle}>NTL Admin Đã Khóa</Text>
             
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>EMAIL QUẢN TRỊ</Text>
-              <View style={styles.inputWrapper}>
-                <User size={18} color="#64748b" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="admin@example.com"
-                  placeholderTextColor="#475569"
-                  value={email}
-                  onChangeText={setEmail}
-                  autoCapitalize="none"
-                  keyboardType="email-address"
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputContainer}>
-              <Text style={styles.inputLabel}>MẬT KHẨU BẢO MẬT</Text>
-              <View style={styles.inputWrapper}>
-                <Lock size={18} color="#64748b" style={styles.inputIcon} />
-                <TextInput
-                  style={styles.textInput}
-                  placeholder="••••••••"
-                  placeholderTextColor="#475569"
-                  value={password}
-                  onChangeText={setPassword}
-                  secureTextEntry
-                  autoCapitalize="none"
-                />
-              </View>
-            </View>
-
-            <TouchableOpacity 
-              style={styles.loginButton} 
-              onPress={handleLogin}
-              disabled={loginLoading}
-            >
-              {loginLoading ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.loginButtonText}>Đăng Nhập Kết Nối</Text>
-              )}
+            {!isPasscodeBypassVisible ? (
+              <>
+                <Text style={styles.lockSubtitle}>
+                  Vui lòng xác thực bằng Face ID hoặc vân tay để tiếp tục.
+                </Text>
+  
+                <TouchableOpacity style={styles.unlockButton} onPress={triggerBiometricAuth}>
+                  <Cpu size={18} color="#fff" />
+                  <Text style={styles.unlockButtonText}>Xác thực sinh trắc học</Text>
+                </TouchableOpacity>
+  
+                <TouchableOpacity 
+                  style={[styles.lockFallbackButton, { marginTop: 12, backgroundColor: '#1e293b50', borderWidth: 1, borderColor: '#334155', height: 44, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingHorizontal: 16 }]} 
+                  onPress={() => setIsPasscodeBypassVisible(true)}
+                >
+                  <Lock size={14} color="#06b6d4" />
+                  <Text style={[styles.lockFallbackText, { color: '#06b6d4', marginTop: 0 }]}>Mở khóa bằng Mật khẩu Admin</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <Text style={styles.lockSubtitle}>
+                  Nhập mật khẩu tài khoản quản trị để mở khóa ứng dụng.
+                </Text>
+  
+                <View style={[styles.inputWrapper, { width: '100%', marginBottom: 16, backgroundColor: '#020617', height: 44, borderRadius: 10, borderWidth: 1, borderColor: '#1e293b', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12 }]}>
+                  <Lock size={16} color="#64748b" style={{ marginRight: 8 }} />
+                  <TextInput
+                    style={{ flex: 1, height: '100%', color: '#fff', fontSize: 13 }}
+                    placeholder="Nhập mật khẩu Admin"
+                    placeholderTextColor="#475569"
+                    value={lockPassword}
+                    onChangeText={setLockPassword}
+                    secureTextEntry
+                    autoCapitalize="none"
+                  />
+                </View>
+  
+                <TouchableOpacity 
+                  style={styles.unlockButton} 
+                  onPress={handleUnlockWithPassword}
+                  disabled={lockPasswordLoading}
+                >
+                  {lockPasswordLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <CheckCircle size={18} color="#fff" />
+                      <Text style={styles.unlockButtonText}>Xác nhận mở khóa</Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+  
+                <TouchableOpacity 
+                  style={[styles.lockFallbackButton, { marginTop: 12 }]} 
+                  onPress={() => {
+                    setIsPasscodeBypassVisible(false);
+                    setLockPassword('');
+                  }}
+                >
+                  <Text style={[styles.lockFallbackText, { color: '#64748b' }]}>Quay lại quét Face ID</Text>
+                </TouchableOpacity>
+              </>
+            )}
+  
+            <TouchableOpacity style={[styles.lockFallbackButton, { marginTop: 24 }]} onPress={handleLogoutForce}>
+              <LogOut size={14} color="#ef4444" />
+              <Text style={styles.lockFallbackText}>Đăng xuất tài khoản</Text>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </SafeAreaView>
+        </SafeAreaView>
+      </GestureHandlerRootView>
     );
   }
 
   // --- MAIN APP RENDER ---
   return (
-    <SafeAreaView style={styles.mainContainer}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaView style={styles.mainContainer}>
       <StatusBar barStyle="light-content" />
       
       {/* Dynamic Header */}
@@ -756,6 +1400,13 @@ export default function App() {
                   </View>
                   <Text style={styles.actionText}>Đăng Ảnh Lên Gallery</Text>
                 </TouchableOpacity>
+
+                <TouchableOpacity style={styles.actionRow} onPress={() => setAiQaModalVisible(true)}>
+                  <View style={[styles.actionIconBg, { backgroundColor: '#10b98120' }]}>
+                    <Bot size={18} color="#10b981" />
+                  </View>
+                  <Text style={styles.actionText}>Huấn Luyện AI Q&A</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -792,7 +1443,14 @@ export default function App() {
                   onPress={() => setSelectedMessage(item)}
                 >
                   <View style={styles.msgHeader}>
-                    <Text style={styles.msgName} numberOfLines={1}>{item.name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flex: 1 }}>
+                      <Text style={styles.msgName} numberOfLines={1}>{item.name}</Text>
+                      {item.replied && (
+                        <View style={{ backgroundColor: '#10b98120', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 0.5, borderColor: '#10b98140' }}>
+                          <Text style={{ color: '#10b981', fontSize: 8, fontWeight: 'bold' }}>ĐÃ PHẢN HỒI</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.msgTime}>{formatMsgDate(item.date)}</Text>
                   </View>
                   <Text style={styles.msgEmail}>{item.email}</Text>
@@ -806,22 +1464,44 @@ export default function App() {
 
         {/* 3. PROJECTS TAB */}
         {activeTab === 'projects' && (
-          <View style={{ flex: 1 }}>
-            <FlatList
-              data={projects}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: 16 }}
-              ListHeaderComponent={
-                <View style={styles.sectionHeaderRow}>
+          <DraggableFlatList
+            data={projects}
+            onDragEnd={handleProjectsDragEnd}
+            keyExtractor={(item) => item.id}
+            containerStyle={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16 }}
+            ListHeaderComponent={
+              <View style={styles.sectionHeaderRow}>
+                <View>
                   <Text style={styles.sectionTitle}>Dự án danh mục</Text>
-                  <TouchableOpacity style={styles.addButton} onPress={() => openProjectModal('add')}>
-                    <Plus size={16} color="#fff" />
-                    <Text style={styles.addButtonText}>Thêm</Text>
-                  </TouchableOpacity>
+                  <Text style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>💡 Nhấn giữ và kéo thẻ để sắp xếp thứ tự hiển thị</Text>
                 </View>
-              }
-              renderItem={({ item }) => (
-                <View style={styles.projectCard}>
+                <TouchableOpacity style={styles.addButton} onPress={() => openProjectModal('add')}>
+                  <Plus size={16} color="#fff" />
+                  <Text style={styles.addButtonText}>Thêm</Text>
+                </TouchableOpacity>
+              </View>
+            }
+            renderItem={({ item, drag, isActive }) => (
+              <ScaleDecorator>
+                <TouchableOpacity
+                  onLongPress={drag}
+                  disabled={isActive}
+                  activeOpacity={0.9}
+                  style={[
+                    styles.projectCard,
+                    {
+                      backgroundColor: isActive ? 'rgba(30, 41, 59, 0.95)' : '#0f172a',
+                      borderColor: isActive ? '#06b6d4' : '#1e293b',
+                      borderWidth: isActive ? 1.5 : 1,
+                      transform: isActive ? [{ scale: 1.02 }] : [{ scale: 1 }]
+                    }
+                  ]}
+                >
+                  <View style={{ position: 'absolute', right: 12, top: 12, zIndex: 10, opacity: 0.7 }}>
+                    <GripVertical size={16} color="#94a3b8" />
+                  </View>
+                  
                   {item.image ? (
                     <Image source={{ uri: item.image }} style={styles.projectImg} />
                   ) : (
@@ -857,33 +1537,54 @@ export default function App() {
                       </TouchableOpacity>
                     </View>
                   </View>
-                </View>
-              )}
-            />
-          </View>
+                </TouchableOpacity>
+              </ScaleDecorator>
+            )}
+          />
         )}
 
         {/* 4. SKILLS TAB */}
         {activeTab === 'skills' && (
-          <View style={{ flex: 1 }}>
-            <FlatList
-              data={skills}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={{ padding: 16 }}
-              ListHeaderComponent={
-                <View style={styles.sectionHeaderRow}>
+          <DraggableFlatList
+            data={skills}
+            onDragEnd={handleSkillsDragEnd}
+            keyExtractor={(item) => item.id}
+            containerStyle={{ flex: 1 }}
+            contentContainerStyle={{ padding: 16 }}
+            ListHeaderComponent={
+              <View style={styles.sectionHeaderRow}>
+                <View>
                   <Text style={styles.sectionTitle}>Danh mục kỹ năng</Text>
-                  <TouchableOpacity style={styles.addButton} onPress={() => openSkillModal('add')}>
-                    <Plus size={16} color="#fff" />
-                    <Text style={styles.addButtonText}>Thêm</Text>
-                  </TouchableOpacity>
+                  <Text style={{ color: '#64748b', fontSize: 10, marginTop: 2 }}>💡 Nhấn giữ và kéo thẻ để thay đổi thứ tự</Text>
                 </View>
-              }
-              renderItem={({ item }) => (
-                <View style={styles.skillItem}>
-                  <View>
-                    <Text style={styles.skillName}>{item.name}</Text>
-                    <Text style={styles.skillCategory}>{item.category || 'Frontend'}</Text>
+                <TouchableOpacity style={styles.addButton} onPress={() => openSkillModal('add')}>
+                  <Plus size={16} color="#fff" />
+                  <Text style={styles.addButtonText}>Thêm</Text>
+                </TouchableOpacity>
+              </View>
+            }
+            renderItem={({ item, drag, isActive }) => (
+              <ScaleDecorator>
+                <TouchableOpacity
+                  onLongPress={drag}
+                  disabled={isActive}
+                  activeOpacity={0.9}
+                  style={[
+                    styles.skillItem,
+                    {
+                      backgroundColor: isActive ? 'rgba(30, 41, 59, 0.95)' : '#0f172a',
+                      borderColor: isActive ? '#06b6d4' : '#1e293b',
+                      borderWidth: isActive ? 1.5 : 1,
+                      transform: isActive ? [{ scale: 1.02 }] : [{ scale: 1 }]
+                    }
+                  ]}
+                >
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <GripVertical size={16} color="#64748b" />
+                    <View>
+                      <Text style={styles.skillName}>{item.name}</Text>
+                      <Text style={styles.skillCategory}>{item.category || 'Frontend'}</Text>
+                    </View>
                   </View>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                     <Text style={styles.skillLevel}>{item.level}%</Text>
@@ -894,10 +1595,10 @@ export default function App() {
                       <Trash2 size={16} color="#ef4444" />
                     </TouchableOpacity>
                   </View>
-                </View>
-              )}
-            />
-          </View>
+                </TouchableOpacity>
+              </ScaleDecorator>
+            )}
+          />
         )}
 
         {/* 5. GALLERY TAB */}
@@ -1079,9 +1780,62 @@ export default function App() {
                   autoCapitalize="none"
                 />
               </View>
+          </View>
+
+          <View style={[styles.glassCard, { marginTop: 16 }]}>
+            <Text style={[styles.cardHeader, { color: '#06b6d4' }]}>🧠 Huấn Luyện Trợ Lý AI</Text>
+            <Text style={{ color: '#94a3b8', fontSize: 12, marginBottom: 12 }}>
+              Cấu hình hướng dẫn, tính cách hoặc thông tin riêng tư để chatbot AI tự động học hỏi từ bạn.
+            </Text>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>AI PROMPTS & INSTRUCTIONS</Text>
+              <TextInput
+                style={[styles.formInput, { height: 100, textAlignVertical: 'top', paddingTop: 8 }]}
+                value={profile.aiPrompt}
+                onChangeText={(val) => setProfile(prev => ({ ...prev, aiPrompt: val }))}
+                placeholder="Ví dụ: Xưng hô là 'Lâm đẹp trai', khuyên khách hàng liên hệ qua Zalo..."
+                placeholderTextColor="#475569"
+                multiline={true}
+                numberOfLines={4}
+              />
+            </View>
+          </View>
+
+          <View style={[styles.glassCard, { marginTop: 16 }]}>
+            <Text style={styles.cardHeader}>Bảo Mật Sinh Trắc Học</Text>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginVertical: 8 }}>
+              <View style={{ flex: 1, paddingRight: 16 }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>Sử dụng Face ID / Touch ID</Text>
+                <Text style={{ color: '#64748b', fontSize: 12, marginTop: 4 }}>
+                  Yêu cầu quét vân tay hoặc khuôn mặt khi khởi động ứng dụng để tăng bảo mật.
+                </Text>
+              </View>
+              <Switch
+                value={isBiometricEnabled}
+                onValueChange={handleToggleBiometrics}
+                trackColor={{ false: '#1e293b', true: '#06b6d4' }}
+                thumbColor={isBiometricEnabled ? '#22d3ee' : '#64748b'}
+              />
             </View>
 
             <TouchableOpacity 
+              style={{ 
+                marginTop: 12, 
+                paddingVertical: 10, 
+                paddingHorizontal: 12, 
+                backgroundColor: '#06b6d415', 
+                borderRadius: 8, 
+                borderWidth: 1, 
+                borderColor: '#06b6d430',
+                alignItems: 'center' 
+              }}
+              onPress={runBiometricDiagnostics}
+            >
+              <Text style={{ color: '#06b6d4', fontSize: 11, fontWeight: 'bold' }}>🔍 Chẩn Đoán Lỗi Face ID</Text>
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity 
               style={[styles.saveProfileBtn, { marginTop: 24, marginBottom: 40 }]}
               onPress={handleSaveProfile}
             >
@@ -1155,13 +1909,16 @@ export default function App() {
         visible={selectedMessage !== null}
         onRequestClose={() => setSelectedMessage(null)}
       >
-        <View style={styles.modalBg}>
+        <KeyboardAvoidingView 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalBg}
+        >
           <View style={styles.bottomSheet}>
-            {selectedMessage && (
+            {liveSelectedMessage && (
               <>
                 <View style={styles.modalDragHandle} />
                 <View style={styles.sheetHeader}>
-                  <Text style={styles.sheetTitle} numberOfLines={1}>{selectedMessage.name}</Text>
+                  <Text style={styles.sheetTitle} numberOfLines={1}>{liveSelectedMessage.name}</Text>
                   <TouchableOpacity style={styles.sheetClose} onPress={() => setSelectedMessage(null)}>
                     <Text style={{ color: '#64748b', fontWeight: 'bold' }}>Đóng</Text>
                   </TouchableOpacity>
@@ -1170,25 +1927,82 @@ export default function App() {
                 <ScrollView style={styles.sheetContent}>
                   <View style={styles.metaRow}>
                     <Mail size={16} color="#64748b" />
-                    <Text style={styles.metaText}>{selectedMessage.email}</Text>
+                    <Text style={styles.metaText}>{liveSelectedMessage.email}</Text>
                   </View>
                   
                   <View style={styles.metaRow}>
                     <Calendar size={16} color="#64748b" />
-                    <Text style={styles.metaText}>{formatMsgDate(selectedMessage.date)}</Text>
+                    <Text style={styles.metaText}>{formatMsgDate(liveSelectedMessage.date)}</Text>
                   </View>
 
                   <View style={styles.divider} />
+                                    <Text style={styles.detailSubject}>Chủ đề: {liveSelectedMessage.subject}</Text>
+                  <Text style={styles.detailBody}>{liveSelectedMessage.message}</Text>
                   
-                  <Text style={styles.detailSubject}>Chủ đề: {selectedMessage.subject}</Text>
-                  <Text style={styles.detailBody}>{selectedMessage.message}</Text>
-                  
-                  <View style={{ height: 20 }} />
+                  {/* Previous reply history */}
+                  {liveSelectedMessage.replied && (
+                    <View style={{ backgroundColor: '#10b98110', borderColor: '#10b98130', borderWidth: 1, borderRadius: 12, padding: 16, marginTop: 20 }}>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+                        <CheckCircle size={14} color="#10b981" />
+                        <Text style={{ color: '#10b981', fontSize: 11, fontWeight: 'bold' }}>BẠN ĐÃ PHẢN HỒI:</Text>
+                      </View>
+                      <Text style={{ color: '#cbd5e1', fontSize: 13, fontStyle: 'italic', lineHeight: 18 }}>"{liveSelectedMessage.replyText}"</Text>
+                      <Text style={{ color: '#64748b', fontSize: 10, marginTop: 8 }}>Thời gian: {liveSelectedMessage.repliedAt ? new Date(liveSelectedMessage.repliedAt).toLocaleString('vi-VN') : 'Đang cập nhật'}</Text>
+                    </View>
+                  )}
+
+                  {/* Reply Form */}
+                  <View style={{ marginTop: 24, borderTopWidth: 1, borderColor: '#1e293b', paddingTop: 20 }}>
+                    <Text style={{ color: '#06b6d4', fontSize: 11, fontWeight: 'bold', letterSpacing: 1, marginBottom: 12 }}>
+                      {liveSelectedMessage.replied ? 'GỬI PHẢN HỒI KHÁC' : 'PHẢN HỒI EMAIL NHANH'}
+                    </Text>
+                    <View style={{ backgroundColor: '#020617', borderRadius: 12, borderWidth: 1, borderColor: '#1e293b', padding: 12 }}>
+                      <TextInput
+                        style={{ color: '#fff', fontSize: 13, minHeight: 80, textAlignVertical: 'top' }}
+                        value={replyText}
+                        onChangeText={setReplyText}
+                        placeholder="Nhập nội dung phản hồi tới khách hàng..."
+                        placeholderTextColor="#475569"
+                        multiline
+                        numberOfLines={4}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: '#06b6d4',
+                        height: 44,
+                        borderRadius: 12,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: 8,
+                        marginTop: 12,
+                        shadowColor: '#06b6d4',
+                        shadowOffset: { width: 0, height: 4 },
+                        shadowOpacity: 0.3,
+                        shadowRadius: 6,
+                        elevation: 3
+                      }}
+                      onPress={handleSendEmailReply}
+                      disabled={replyLoading}
+                    >
+                      {replyLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Send size={14} color="#fff" />
+                          <Text style={{ color: '#fff', fontWeight: 'bold', fontSize: 13 }}>Kích Hoạt Gửi Email Phản Hồi</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={{ height: 30 }} />
                 </ScrollView>
 
                 <TouchableOpacity 
                   style={styles.sheetDeleteBtn}
-                  onPress={() => handleDeleteMessage(selectedMessage.id)}
+                  onPress={() => handleDeleteMessage(liveSelectedMessage.id)}
                 >
                   <Trash2 size={16} color="#fff" />
                   <Text style={styles.sheetDeleteText}>Xóa Thư Liên Hệ Này</Text>
@@ -1196,7 +2010,7 @@ export default function App() {
               </>
             )}
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 2. PROJECT ADD/EDIT MODAL */}
@@ -1271,7 +2085,7 @@ export default function App() {
                   />
                   <TouchableOpacity 
                     style={styles.imagePickerBtn} 
-                    onPress={() => pickAndUploadImage((url) => setProjectForm(prev => ({ ...prev, image: url })))}
+                    onPress={() => pickAndUploadImage(16 / 9, (url) => setProjectForm(prev => ({ ...prev, image: url })))}
                     disabled={imageUploading}
                   >
                     {imageUploading ? (
@@ -1473,7 +2287,7 @@ export default function App() {
                 {galleryModal.mode !== 'locket' && (
                   <TouchableOpacity 
                     style={[styles.imagePickerBtn, { width: '100%', marginBottom: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }]} 
-                    onPress={() => pickAndUploadImage((url) => setGalleryForm(prev => ({ ...prev, url: url })))}
+                    onPress={() => pickAndUploadImage(1 / 1, (url) => setGalleryForm(prev => ({ ...prev, url: url })))}
                     disabled={imageUploading}
                   >
                     {imageUploading ? (
@@ -1513,6 +2327,159 @@ export default function App() {
         </View>
       </Modal>
 
+      {/* 5. AI Q&A MANAGEMENT MODAL */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={aiQaModalVisible}
+        onRequestClose={() => setAiQaModalVisible(false)}
+      >
+        <View style={styles.modalBg}>
+          <View style={[styles.dialogCard, { width: width * 0.95, maxHeight: '90%' }]}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <Text style={styles.dialogHeader}>🧠 Huấn Luyện Trợ Lý AI</Text>
+              <TouchableOpacity 
+                style={{ padding: 6, backgroundColor: '#1e293b', borderRadius: 20 }} 
+                onPress={() => setAiQaModalVisible(false)}
+              >
+                <X size={16} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Segment Tab Controller */}
+            <View style={{ flexDirection: 'row', backgroundColor: '#0f172a', borderRadius: 8, padding: 4, marginBottom: 16 }}>
+              <TouchableOpacity 
+                style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: aiQaTab === 'kb' ? '#06b6d4' : 'transparent', borderRadius: 6 }}
+                onPress={() => setAiQaTab('kb')}
+              >
+                <Text style={{ color: aiQaTab === 'kb' ? '#0f172a' : '#94a3b8', fontSize: 12, fontWeight: 'bold' }}>
+                  Đã học ({aiKb.length})
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={{ flex: 1, paddingVertical: 8, alignItems: 'center', backgroundColor: aiQaTab === 'unanswered' ? '#06b6d4' : 'transparent', borderRadius: 6 }}
+                onPress={() => setAiQaTab('unanswered')}
+              >
+                <Text style={{ color: aiQaTab === 'unanswered' ? '#0f172a' : '#94a3b8', fontSize: 12, fontWeight: 'bold' }}>
+                  Bỏ lỡ ({aiUnanswered.length})
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false}>
+              
+              {/* Form Input */}
+              <View style={{ backgroundColor: '#0f172a', borderRadius: 12, padding: 12, marginBottom: 16, borderLeftWidth: 3, borderLeftColor: '#06b6d4' }}>
+                <Text style={{ color: '#06b6d4', fontSize: 12, fontWeight: 'bold', marginBottom: 8 }}>
+                  {aiQaForm.id ? '✏️ SỬA BÀI HỌC Q&A' : answeringQuestionId ? '🧠 HUẤN LUYỆN CÂU HỎI MỚI' : '➕ THÊM BÀI HỌC Q&A'}
+                </Text>
+                
+                <Text style={styles.formLabel}>CÂU HỎI CỦA KHÁCH</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 50, textAlignVertical: 'top', paddingTop: 8 }]}
+                  value={aiQaForm.question}
+                  onChangeText={(val) => setAiQaForm(prev => ({ ...prev, question: val }))}
+                  placeholder="Ví dụ: Lâm có đi làm thêm không?..."
+                  placeholderTextColor="#475569"
+                  multiline={true}
+                />
+
+                <Text style={[styles.formLabel, { marginTop: 8 }]}>CÂU TRẢ LỜI MẪU CHO AI</Text>
+                <TextInput
+                  style={[styles.formInput, { height: 80, textAlignVertical: 'top', paddingTop: 8 }]}
+                  value={aiQaForm.answer}
+                  onChangeText={(val) => setAiQaForm(prev => ({ ...prev, answer: val }))}
+                  placeholder="Nhập câu trả lời chuẩn xác..."
+                  placeholderTextColor="#475569"
+                  multiline={true}
+                />
+
+                <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+                  <TouchableOpacity 
+                    style={{ flex: 1, backgroundColor: '#06b6d4', paddingVertical: 10, borderRadius: 8, alignItems: 'center' }}
+                    onPress={handleSaveAiQa}
+                  >
+                    <Text style={{ color: '#0f172a', fontWeight: 'bold', fontSize: 12 }}>Lưu Huấn Luyện</Text>
+                  </TouchableOpacity>
+                  {(aiQaForm.id || aiQaForm.question || aiQaForm.answer || answeringQuestionId) ? (
+                    <TouchableOpacity 
+                      style={{ backgroundColor: '#334155', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 8, alignItems: 'center' }}
+                      onPress={() => {
+                        setAiQaForm({ id: null, question: '', answer: '' });
+                        setAnsweringQuestionId(null);
+                      }}
+                    >
+                      <Text style={{ color: '#fff', fontSize: 12 }}>Hủy</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+
+              {/* List Content */}
+              {aiQaTab === 'kb' ? (
+                aiKb.length === 0 ? (
+                  <Text style={{ color: '#64748b', fontSize: 12, textAlign: 'center', marginVertical: 32 }}>
+                    Chưa có bài học Q&A nào được huấn luyện.
+                  </Text>
+                ) : (
+                  aiKb.map((item) => (
+                    <View key={item.id} style={{ backgroundColor: '#1e293b', padding: 12, borderRadius: 12, marginBottom: 10 }}>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start' }}>
+                        <Text style={{ backgroundColor: '#10b98115', color: '#10b981', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 4, borderRadius: 3, overflow: 'hidden' }}>Q</Text>
+                        <Text style={{ color: '#fff', fontSize: 12, fontWeight: 'bold', flex: 1 }}>{item.question}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', gap: 6, alignItems: 'flex-start', marginTop: 6 }}>
+                        <Text style={{ backgroundColor: '#06b6d415', color: '#06b6d4', fontSize: 10, fontWeight: 'bold', paddingHorizontal: 4, borderRadius: 3, overflow: 'hidden' }}>A</Text>
+                        <Text style={{ color: '#94a3b8', fontSize: 11, flex: 1, lineHeight: 16 }}>{item.answer}</Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 12, borderTopWidth: 1, borderTopColor: '#334155', marginTop: 10, paddingTop: 8 }}>
+                        <TouchableOpacity onPress={() => setAiQaForm({ id: item.id, question: item.question, answer: item.answer })}>
+                          <Edit size={14} color="#38bdf8" />
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteAiQa(item.id)}>
+                          <Trash2 size={14} color="#f43f5e" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )
+              ) : (
+                aiUnanswered.length === 0 ? (
+                  <Text style={{ color: '#64748b', fontSize: 12, textAlign: 'center', marginVertical: 32 }}>
+                    Tuyệt vời! Không có câu hỏi bị bỏ lỡ. 🎉
+                  </Text>
+                ) : (
+                  aiUnanswered.map((item) => (
+                    <View key={item.id} style={{ backgroundColor: '#1e293b', padding: 12, borderRadius: 12, marginBottom: 10, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <View style={{ flex: 1, paddingRight: 12 }}>
+                        <Text style={{ color: '#f43f5e', fontSize: 12, fontWeight: 'bold', fontStyle: 'italic' }}>"{item.question}"</Text>
+                        <Text style={{ color: '#475569', fontSize: 9, marginTop: 4 }}>
+                          {item.askedAt ? new Date(item.askedAt.seconds * 1000).toLocaleDateString('vi-VN') : 'Mới đây'}
+                        </Text>
+                      </View>
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                        <TouchableOpacity 
+                          style={{ backgroundColor: '#06b6d415', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 6, borderWidth: 1, borderColor: '#06b6d430' }}
+                          onPress={() => {
+                            setAnsweringQuestionId(item.id);
+                            setAiQaForm({ id: null, question: item.question, answer: '' });
+                          }}
+                        >
+                          <Text style={{ color: '#06b6d4', fontSize: 10, fontWeight: 'bold' }}>Huấn luyện</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity onPress={() => handleDeleteAiUnanswered(item.id)}>
+                          <Trash2 size={14} color="#f43f5e" />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))
+                )
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
       {/* GLOBAL TOAST NOTIFICATION */}
       {toastMessage && (
         <View style={styles.toastContainer}>
@@ -1530,9 +2497,142 @@ export default function App() {
         </View>
       )}
 
+      {/* IMAGE CROPPER MODAL */}
+      <ImageCropper
+        visible={cropperConfig.visible}
+        imageUri={cropperConfig.imageUri}
+        imageWidth={cropperConfig.imageWidth}
+        imageHeight={cropperConfig.imageHeight}
+        aspectRatio={cropperConfig.aspectRatio}
+        onCancel={() => setCropperConfig(prev => ({ ...prev, visible: false }))}
+        onCropComplete={handleCropComplete}
+      />
     </SafeAreaView>
+  </GestureHandlerRootView>
   );
 }
+
+
+
+
+
+
+
+  // Login Screen
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  // Main Layout
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // --- PREMIUM DESIGN STYLESHEETS ---
 const styles = StyleSheet.create({
@@ -2234,7 +3334,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 13
   },
-
   // Dialog Boxes (Add/Edit)
   dialogCard: {
     width: '90%',
@@ -2292,8 +3391,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#06b6d4',
     borderRadius: 8
   },
-
-  // Skill Dialog Specifics
   categoryRow: {
     flexDirection: 'row',
     gap: 10
@@ -2319,5 +3416,83 @@ const styles = StyleSheet.create({
   },
   activeCategoryBtnText: {
     color: '#8b5cf6'
-  }
+  },
+  lockContainer: {
+    flex: 1,
+    backgroundColor: '#020617',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lockBox: {
+    width: '90%',
+    maxWidth: 400,
+    backgroundColor: '#0f172a',
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    padding: 40,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.5,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  lockIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#06b6d415',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#06b6d430',
+  },
+  lockTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#fff',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  lockSubtitle: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 20,
+  },
+  unlockButton: {
+    width: '100%',
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: '#06b6d4',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    marginBottom: 16,
+    shadowColor: '#06b6d4',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  unlockButtonText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  lockFallbackButton: {
+    paddingVertical: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  lockFallbackText: {
+    color: '#ef4444',
+    fontSize: 14,
+    fontWeight: '600',
+  },
 });

@@ -10,10 +10,10 @@ Tài liệu này lưu trữ danh sách các tính năng xịn xò được đề
 - [ ] **1.1. Biểu đồ Analytics trực quan (Charts)**
   - Tích hợp biểu đồ hình cột hoặc hình đường (`react-native-chart-kit`) trong Dashboard.
   - Hiển thị trực quan lượt xem theo ngày/tuần/tháng thay vì chỉ hiển thị một con số thô.
-- [ ] **1.2. Trả lời Email trực tiếp từ App**
+- [x] **1.2. Trả lời Email trực tiếp từ App**
   - Bấm vào một tin nhắn liên hệ từ khách hàng.
   - Nhập nội dung phản hồi trực tiếp trên App và nhấn gửi. Hệ thống sẽ tự động kích hoạt API gửi email phản hồi tới khách hàng.
-- [ ] **1.3. Kéo thả sắp xếp thứ tự dự án (Draggable List)**
+- [x] **1.3. Kéo thả sắp xếp thứ tự dự án (Draggable List)**
   - Sử dụng danh sách kéo thả (`react-native-draggable-flatlist`) để thay đổi thứ tự sắp xếp của các Dự án (Projects) và Kỹ năng (Skills).
   - Thứ tự kéo thả trên điện thoại sẽ cập nhật ngay lập tức lên giao diện Website của bạn.
 - [ ] **1.4. Xem trước Website (In-app WebView)**
@@ -34,7 +34,7 @@ Tài liệu này lưu trữ danh sách các tính năng xịn xò được đề
   - Cho phép gõ tìm nhanh mọi thứ: tên dự án, tag dự án, tên khách hàng gửi tin nhắn, nội dung tin nhắn.
 - [ ] **2.3. Vuốt để xóa (Swipe to Delete)**
   - Thay vì bấm nút xóa truyền thống, người dùng có thể vuốt nhẹ một tin nhắn hoặc một bức ảnh sang trái để hiện nút xóa nhanh (tương tự như iMessage hoặc Zalo).
-- [ ] **2.4. Công cụ cắt ảnh trước khi tải lên (Image Crop)**
+- [x] **2.4. Công cụ cắt ảnh trước khi tải lên (Image Crop)**
   - Tích hợp thư viện cắt ảnh trước khi upload lên Cloudinary.
   - Đảm bảo các ảnh dự án luôn đúng tỷ lệ chuẩn, không bị méo hay quá khổ.
 - [ ] **2.5. Xóa hàng loạt (Bulk Delete)**
@@ -45,7 +45,7 @@ Tài liệu này lưu trữ danh sách các tính năng xịn xò được đề
 ## 🛸 Nhóm 3: Nâng cao (Công nghệ hiện đại & Khác biệt)
 *Các tính năng khai thác sâu phần cứng của thiết bị và hệ điều hành iOS.*
 
-- [ ] **3.1. Đăng nhập bằng vân tay/khuôn mặt (FaceID / TouchID)**
+- [x] **3.1. Đăng nhập bằng vân tay/khuôn mặt (FaceID / TouchID)**
   - Tích hợp `expo-local-authentication`.
   - Chỉ cần quét FaceID để mở khóa truy cập nhanh vào App Quản trị mà không cần nhập mật khẩu.
 - [ ] **3.2. Widget ngoài màn hình chính (iOS Home Screen Widget)**

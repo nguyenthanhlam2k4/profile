@@ -98,7 +98,7 @@ export default function AboutSection({ profile, socials, gallery }) {
 
           {/* Bottom: 3D Stacked Slider & All View Button */}
           <div className="flex flex-col items-center pt-8 border-t border-border/50">
-            <div className="relative w-full h-[300px] sm:h-[350px] md:h-[450px] flex items-center justify-center overflow-visible py-10">
+            <div className="relative w-full h-[180px] sm:h-[230px] md:h-[310px] flex items-center justify-center overflow-visible py-4">
               <AnimatePresence initial={false}>
                 {previewItems.map((item, index) => {
                   const numItems = previewItems.length;
@@ -111,33 +111,33 @@ export default function AboutSection({ profile, socials, gallery }) {
                   // Show exactly 5 items
                   if (!isCenter && !isLeft1 && !isRight1 && !isLeft2 && !isRight2) return null;
 
-                  let x = "0%";
+                  let x = "-50%";
                   let scale = 0.7;
                   let zIndex = 10;
                   let opacity = 0.6;
 
                   if (isCenter) {
-                    x = "0%";
+                    x = "-50%";
                     scale = 1;
                     zIndex = 50;
                     opacity = 1;
                   } else if (isLeft1) {
-                    x = "-105%";
+                    x = "-160%";
                     scale = 0.85;
                     zIndex = 40;
                     opacity = 0.9;
                   } else if (isRight1) {
-                    x = "105%";
+                    x = "60%";
                     scale = 0.85;
                     zIndex = 40;
                     opacity = 0.9;
                   } else if (isLeft2) {
-                    x = "-195%";
+                    x = "-270%";
                     scale = 0.7;
                     zIndex = 30;
                     opacity = 0.7;
                   } else if (isRight2) {
-                    x = "195%";
+                    x = "170%";
                     scale = 0.7;
                     zIndex = 30;
                     opacity = 0.7;
@@ -146,11 +146,11 @@ export default function AboutSection({ profile, socials, gallery }) {
                   return (
                     <motion.div
                       key={index}
-                      initial={{ opacity: 0, x: "0%", scale: 0.5 }}
+                      initial={{ opacity: 0, x: "-50%", scale: 0.5 }}
                       animate={{ x, scale, zIndex, opacity }}
                       exit={{ opacity: 0, scale: 0.5 }}
                       transition={{ duration: 0.5, ease: [0.32, 0.72, 0, 1] }}
-                      className="absolute w-[120px] sm:w-[160px] md:w-[220px] aspect-[4/5] rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl cursor-pointer bg-slate-900"
+                      className="absolute left-1/2 w-[120px] sm:w-[160px] md:w-[220px] aspect-[4/5] rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl cursor-pointer bg-slate-900"
                       onClick={() => setActiveIndex(index)}
                       drag="x"
                       dragConstraints={{ left: 0, right: 0 }}
@@ -168,19 +168,34 @@ export default function AboutSection({ profile, socials, gallery }) {
                   );
                 })}
               </AnimatePresence>
+            </div>
 
-              {/* Dots Indicator inside the slider area */}
-              <div className="absolute bottom-2 flex gap-2 z-40">
-                {previewItems.map((_, i) => (
-                  <button
-                    key={i}
-                    onClick={() => setActiveIndex(i)}
-                    className={`h-1.5 rounded-full transition-all duration-300 ${
-                      i === activeIndex ? "w-8 bg-primary" : "w-1.5 bg-slate-300 dark:bg-slate-700"
-                    }`}
-                  />
-                ))}
-              </div>
+            {/* Active Title Caption Box */}
+            <motion.div 
+              key={activeIndex}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3 }}
+              className="bg-slate-200/80 dark:bg-slate-800/80 backdrop-blur-md px-8 py-2 rounded-full border border-slate-300/40 dark:border-slate-700/40 shadow-lg min-w-[120px] text-center mt-6 z-40"
+            >
+              <span className="text-sm md:text-base font-bold text-slate-800 dark:text-slate-100 tracking-wide">
+                {typeof previewItems[activeIndex] === 'string'
+                  ? 'Khoảnh khắc'
+                  : (previewItems[activeIndex]?.title || 'Không có tiêu đề')}
+              </span>
+            </motion.div>
+
+            {/* Dots Indicator */}
+            <div className="flex gap-2 mt-4 z-40">
+              {previewItems.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={() => setActiveIndex(i)}
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    i === activeIndex ? "w-8 bg-primary" : "w-1.5 bg-slate-300 dark:bg-slate-700"
+                  }`}
+                />
+              ))}
             </div>
 
             {/* All View Button */}

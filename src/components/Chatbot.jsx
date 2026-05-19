@@ -15,7 +15,7 @@ import {
   Navigation,
 } from 'lucide-react';
 import { getAIResponse } from '../services/ai';
-import { getProfile, getSkills, getProjects } from '../services/firebase';
+import { subscribeProfile, subscribeSkills, subscribeProjects, subscribeAiKb, addAiUnanswered } from '../services/firebase';
 
 // ── Markdown Renderer ─────────────────────────────────────────────────────────
 function MarkdownText({ text }) {
@@ -123,19 +123,31 @@ export default function Chatbot() {
   }, [messages, loading]);
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [profile, skills, projects] = await Promise.all([
-          getProfile(),
-          getSkills(),
-          getProjects(),
-        ]);
-        setContextData({ profile, skills, projects });
-      } catch (error) {
-        console.error('Error fetching context for AI:', error);
-      }
+    let unsubProfile, unsubSkills, unsubProjects, unsubKb;
+
+    try {
+      unsubProfile = subscribeProfile((prof) => {
+        setContextData(prev => ({ ...prev, profile: prof }));
+      });
+      unsubSkills = subscribeSkills((skls) => {
+        setContextData(prev => ({ ...prev, skills: skls }));
+      });
+      unsubProjects = subscribeProjects((projs) => {
+        setContextData(prev => ({ ...prev, projects: projs }));
+      });
+      unsubKb = subscribeAiKb((kb) => {
+        setContextData(prev => ({ ...prev, aiKb: kb }));
+      });
+    } catch (error) {
+      console.error('Error subscribing context for AI:', error);
+    }
+
+    return () => {
+      if (unsubProfile) unsubProfile();
+      if (unsubSkills) unsubSkills();
+      if (unsubProjects) unsubProjects();
+      if (unsubKb) unsubKb();
     };
-    fetchData();
   }, []);
 
   // Focus input khi mở chat
@@ -198,8 +210,19 @@ export default function Chatbot() {
 
     try {
       const rawResponse = await getAIResponse(text, contextData, prevMessages);
-      const { text: cleanText, navPath } = parseResponse(rawResponse);
+      
+      // Kiểm tra xem mô hình có gắn cờ UNANSWERED do thiếu thông tin hay không
+      const isUnanswered = rawResponse.includes('[UNANSWERED]');
+      const cleanRawResponse = rawResponse.replace('[UNANSWERED]', '').trim();
+
+      const { text: cleanText, navPath } = parseResponse(cleanRawResponse);
       setMessages((prev) => [...prev, { role: 'ai', text: cleanText }]);
+
+      if (isUnanswered) {
+        // Lưu câu hỏi vào danh sách chưa trả lời để Lâm huấn luyện sau
+        addAiUnanswered(userMsg).catch(err => console.error('Error logging unanswered question:', err));
+      }
+
       if (navPath) {
         setTimeout(() => executeNav(navPath), 600); // nhỏ delay để user đọc response trước
       }

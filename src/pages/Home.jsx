@@ -6,7 +6,7 @@ import AboutSection from '../components/sections/AboutSection';
 import SkillsSection from '../components/sections/SkillsSection';
 import ProjectsSection from '../components/sections/ProjectsSection';
 import ContactSection from '../components/sections/ContactSection';
-import { getProfile, getProjects, getSkills, getSocials, getGallery, incrementViews, subscribeGallery } from '../services/firebase';
+import { getProfile, getProjects, getSkills, getSocials, getGallery, incrementViews, subscribeGallery, subscribeProfile, subscribeProjects, subscribeSkills } from '../services/firebase';
 
 // ── Skeleton Components ──────────────────────────────────────────────────────
 const Shimmer = ({ className }) => (
@@ -95,18 +95,10 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchData = async () => {
+    // 1. Static/One-time operations (Views count & Socials fetch)
+    const initStaticData = async () => {
       try {
-        const [profileData, projectsData, skillsData, socialsData] = await Promise.all([
-          getProfile(),
-          getProjects(),
-          getSkills(),
-          getSocials()
-        ]);
-        
-        if (profileData) setProfile(profileData);
-        setProjects(projectsData);
-        setSkills(skillsData);
+        const socialsData = await getSocials();
         setSocials(socialsData || []);
 
         const hasCounted = sessionStorage.getItem('hasCountedView');
@@ -115,12 +107,42 @@ export default function Home() {
           sessionStorage.setItem('hasCountedView', 'true');
         }
       } catch (error) {
-        console.error('Error fetching data:', error);
-      } finally {
-        setLoading(false);
+        console.error('Error in static data init:', error);
       }
     };
-    fetchData();
+    initStaticData();
+
+    // 2. Real-time Subscriptions
+    const unsubProfile = subscribeProfile(
+      (data) => {
+        if (data) setProfile(data);
+      },
+      (err) => console.error('Profile sync error:', err)
+    );
+
+    const unsubProjects = subscribeProjects(
+      (data) => {
+        setProjects(data || []);
+        setLoading(false);
+      },
+      (err) => {
+        console.error('Projects sync error:', err);
+        setLoading(false);
+      }
+    );
+
+    const unsubSkills = subscribeSkills(
+      (data) => {
+        setSkills(data || []);
+      },
+      (err) => console.error('Skills sync error:', err)
+    );
+
+    return () => {
+      unsubProfile();
+      unsubProjects();
+      unsubSkills();
+    };
   }, []);
 
   useEffect(() => {

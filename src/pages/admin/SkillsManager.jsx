@@ -3,7 +3,7 @@ import { Plus, Edit2, Trash2, X, Loader2 } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { getSkills, addSkill, updateSkill, deleteSkill } from '../../services/firebase';
+import { getSkills, addSkill, updateSkill, deleteSkill, subscribeSkills } from '../../services/firebase';
 
 export default function SkillsManager() {
   const { t } = useTranslation();
@@ -13,20 +13,19 @@ export default function SkillsManager() {
   const [editingSkill, setEditingSkill] = useState(null);
   const { register, handleSubmit, reset } = useForm();
 
-  const fetchSkills = async () => {
-    try {
-      const data = await getSkills();
-      const sortedData = [...data].sort((a, b) => (a.order || 0) - (b.order || 0));
-      setSkills(sortedData);
-    } catch (error) {
-      toast.error('Failed to fetch skills');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchSkills();
+    const unsubscribe = subscribeSkills(
+      (data) => {
+        setSkills(data || []);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error subscribing to skills:', error);
+        toast.error('Không thể kết nối danh sách kỹ năng.');
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
   }, []);
 
   const onSubmit = async (data) => {
@@ -41,7 +40,6 @@ export default function SkillsManager() {
       setShowModal(false);
       reset();
       setEditingSkill(null);
-      fetchSkills();
     } catch (error) {
       toast.error('Operation failed');
     }
@@ -58,7 +56,6 @@ export default function SkillsManager() {
       try {
         await deleteSkill(id);
         toast.success(t('admin.delete_success') || 'Đã xóa kỹ năng');
-        fetchSkills();
       } catch (error) {
         toast.error('Failed to delete skill');
       }

@@ -3,7 +3,7 @@ import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { LayoutDashboard, FolderKanban, Wrench, User, LogOut, Link2, ExternalLink, Menu, X, Image, MessageSquare } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Wrench, User, LogOut, Link2, ExternalLink, Menu, X, Image, MessageSquare, Bot } from 'lucide-react';
 import { subscribeMessages } from '../services/firebase';
 
 export default function AdminLayout() {
@@ -135,6 +135,7 @@ export default function AdminLayout() {
     { to: '/admin/messages', icon: MessageSquare, label: t('admin.messages') },
     { to: '/admin/socials', icon: Link2, label: 'Mạng xã hội' },
     { to: '/admin/profile', icon: User, label: t('admin.profile') },
+    { to: '/admin/ai-qa', icon: Bot, label: 'Huấn luyện AI Q&A' },
   ];
 
   return (

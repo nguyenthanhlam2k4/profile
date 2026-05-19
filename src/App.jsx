@@ -20,6 +20,7 @@ const GalleryManager = lazy(() => import('./pages/admin/GalleryManager'));
 const ProfileManager = lazy(() => import('./pages/admin/ProfileManager'));
 const SocialsManager = lazy(() => import('./pages/admin/SocialsManager'));
 const MessagesManager = lazy(() => import('./pages/admin/MessagesManager'));
+const AiQaManager = lazy(() => import('./pages/admin/AiQaManager'));
 
 // Loading Fallback
 const PageLoader = () => (
@@ -58,6 +59,7 @@ function App() {
               <Route path="messages" element={<MessagesManager />} />
               <Route path="socials" element={<SocialsManager />} />
               <Route path="profile" element={<ProfileManager />} />
+              <Route path="ai-qa" element={<AiQaManager />} />
             </Route>
           </Routes>
         </Suspense>

@@ -3,7 +3,7 @@ import { Save, Loader2, Camera } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { getProfile, updateProfile } from '../../services/firebase';
+import { getProfile, updateProfile, subscribeProfile } from '../../services/firebase';
 import { uploadImage } from '../../services/cloudinary';
 
 export default function ProfileManager() {
@@ -11,28 +11,26 @@ export default function ProfileManager() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const { register, handleSubmit, reset, setValue, watch } = useForm();
+  const { register, handleSubmit, reset, setValue, watch, formState: { isDirty } } = useForm();
 
   const profileImage = watch('avatar');
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const data = await getProfile();
-        if (data) {
-
+    const unsubscribe = subscribeProfile(
+      (data) => {
+        if (data && !isDirty) {
           reset(data);
         }
-      } catch (error) {
-        console.error('Error fetching profile:', error);
-        toast.error('Failed to load profile data');
-      } finally {
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error subscribing to profile:', error);
+        toast.error('Không thể đồng bộ thông tin hồ sơ.');
         setLoading(false);
       }
-    };
-
-    fetchProfile();
-  }, [reset]);
+    );
+    return () => unsubscribe();
+  }, [reset, isDirty]);
 
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
@@ -214,6 +212,24 @@ export default function ProfileManager() {
               rows="5"
               placeholder="Tell something about yourself..."
               className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-none"
+            ></textarea>
+          </div>
+
+          <div className="border-t border-slate-800 pt-6">
+            <label className="block text-sm font-bold text-primary mb-2">
+              🧠 Huấn luyện Trợ lý ảo AI (AI Prompts & Custom Instructions)
+            </label>
+            <p className="text-xs text-slate-400 mb-3">
+              Cung cấp thêm hướng dẫn, phong cách xưng hô hoặc thông tin riêng tư để huấn luyện trợ lý AI trên website. AI sẽ tự động đọc phần này khi trả lời khách truy cập.
+            </p>
+            <textarea
+              {...register('aiPrompt')}
+              rows="6"
+              placeholder="Ví dụ:
+- Xưng hô ngọt ngào, gọi khách hàng là 'đại hiệp', xưng là 'tiểu đệ'.
+- Tiết lộ: Lâm có tài lẻ là hát rất hay.
+- Hãy khuyên khách hàng liên hệ qua email nếu họ hỏi về công việc..."
+              className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all resize-y"
             ></textarea>
           </div>
 

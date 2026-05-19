@@ -3,7 +3,7 @@ import { Plus, Edit2, Trash2, X, Loader2, Image as ImageIcon } from 'lucide-reac
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
 import toast from 'react-hot-toast';
-import { getProjects, addProject, updateProject, deleteProject } from '../../services/firebase';
+import { getProjects, addProject, updateProject, deleteProject, subscribeProjects } from '../../services/firebase';
 import { uploadImage } from '../../services/cloudinary';
 
 export default function ProjectsManager() {
@@ -18,20 +18,19 @@ export default function ProjectsManager() {
 
   const currentImage = watch('image');
 
-  const fetchProjects = async () => {
-    try {
-      const data = await getProjects();
-      const sortedData = [...data].sort((a, b) => (a.order || 0) - (b.order || 0));
-      setProjects(sortedData);
-    } catch (error) {
-      toast.error('Failed to fetch projects');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchProjects();
+    const unsubscribe = subscribeProjects(
+      (data) => {
+        setProjects(data || []);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Error subscribing to projects:', error);
+        toast.error('Không thể kết nối danh sách dự án.');
+        setLoading(false);
+      }
+    );
+    return () => unsubscribe();
   }, []);
 
   const handleImageUpload = async (e) => {
@@ -61,7 +60,6 @@ export default function ProjectsManager() {
         toast.success(t('admin.save_success') || 'Đã thêm dự án mới');
       }
       closeModal();
-      fetchProjects();
     } catch (error) {
       toast.error('Operation failed');
     }
@@ -86,7 +84,6 @@ export default function ProjectsManager() {
       try {
         await deleteProject(id);
         toast.success(t('admin.delete_success') || 'Đã xóa dự án');
-        fetchProjects();
       } catch (error) {
         toast.error('Failed to delete project');
       }
