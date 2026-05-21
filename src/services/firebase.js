@@ -264,12 +264,27 @@ export const getDashboardStats = async () => {
   }
 };
 
+// Helper: Normalize timestamp from Firestore to milliseconds
+const normalizeTimestamp = (timestamp) => {
+  if (typeof timestamp === 'number') return timestamp;
+  if (timestamp?.seconds) return timestamp.seconds * 1000;
+  if (timestamp instanceof Date) return timestamp.getTime();
+  return 0;
+};
+
+// Helper: Normalize gallery items
+const normalizeGalleryItem = (item) => ({
+  ...item,
+  postedAt: normalizeTimestamp(item.postedAt),
+  createdAt: normalizeTimestamp(item.createdAt)
+});normalizeGalleryItem
+
 // Gallery
 export const getGallery = async () => {
   const galleryCol = collection(db, 'gallery');
   const q = query(galleryCol, orderBy('postedAt', 'desc'));
   const snapshot = await getDocs(q);
-  return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+  return snapshot.docs.map(doc => normalizeGalleryItem({ id: doc.id, ...doc.data() }));
 };
 
 export const subscribeGallery = (callback, onError) => {
@@ -287,9 +302,12 @@ export const subscribeGallery = (callback, onError) => {
 };
 
 export const addGalleryItem = async (data) => {
+  const now = Date.now();
   return await addDoc(collection(db, 'gallery'), {
     ...data,
-    createdAt: new Date()
+    postedAt: now,
+    createdAt: now,
+    updatedAt: now
   });
 };
 
@@ -297,7 +315,7 @@ export const updateGalleryItem = async (id, data) => {
   const ref = doc(db, 'gallery', id);
   return await updateDoc(ref, {
     ...data,
-    updatedAt: new Date()
+    updatedAt: Date.now()
   });
 };
 

@@ -42,12 +42,10 @@ export default function Gallery() {
       });
     }
 
-    // Sort
+    // Sort - timestamps are now all normalized to milliseconds
     items.sort((a, b) => {
-      const timeA = a.postedAt || a.createdAt || 0;
-      const timeB = b.postedAt || b.createdAt || 0;
-      if (sortBy === 'newest') return timeB - timeA;
-      return timeA - timeB;
+      if (sortBy === 'newest') return (b.postedAt || 0) - (a.postedAt || 0);
+      return (a.postedAt || 0) - (b.postedAt || 0);
     });
 
     return items;

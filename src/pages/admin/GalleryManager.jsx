@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Plus, Edit2, Trash2, X, Loader2, Camera, Calendar, Image as ImageIcon } from 'lucide-react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +32,12 @@ export default function GalleryManager() {
     fetchGallery();
   }, []);
 
+  // Sort gallery by postedAt in descending order (newest first)
+  const sortedGallery = useMemo(() => {
+    const sorted = [...gallery].sort((a, b) => (b.postedAt || 0) - (a.postedAt || 0));
+    return sorted;
+  }, [gallery]);
+
   const handleImageUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -54,13 +60,13 @@ export default function GalleryManager() {
       return;
     }
 
-    // Ensure postedAt is a timestamp or valid string format.
-    // If we use input type="date", data.postedAt will be "YYYY-MM-DD"
-    // Let's store it as timestamp or ISO string for consistency.
+    // Convert date string to timestamp for sorting
+    const postedAtTime = data.postedAt ? new Date(data.postedAt).getTime() : Date.now();
+    
     const payload = {
       title: data.title,
       url: data.url,
-      postedAt: data.postedAt ? new Date(data.postedAt).getTime() : Date.now(),
+      postedAt: editingItem ? postedAtTime : Date.now(), // Always use current time for new images
     };
 
     try {
@@ -176,12 +182,12 @@ export default function GalleryManager() {
               <h3 className="font-medium text-slate-200 truncate">{item.title || 'Không có tiêu đề'}</h3>
               <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
                 <Calendar size={12} />
-                {item.postedAt ? new Date(item.postedAt).toLocaleDateString() : 'N/A'}
+                {item.postedAt ? new Date(item.postedAt).toLocaleDateString('vi-VN') : 'N/A'}
               </p>
             </div>
           </div>
         ))}
-        {gallery.length === 0 && (
+        {sortedGallery.length === 0 && (
           <div className="col-span-full py-12 text-center text-slate-500 bg-slate-900/50 rounded-xl border border-dashed border-slate-800">
             <ImageIcon size={48} className="mx-auto mb-3 opacity-20" />
             <p>Chưa có ảnh nào trong thư viện.</p>
